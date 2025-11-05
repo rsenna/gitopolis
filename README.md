@@ -1,3 +1,7 @@
+> [!NOTE]
+> Fork purpose
+> - "Add all" functionality: from a given folder, add all git repos recursively
+
 # Gitopolis
 
 Manage multiple git repositories with ease.
