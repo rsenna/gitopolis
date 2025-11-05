@@ -1,7 +1,8 @@
 > [!NOTE]
-> Fork purpose
+> This for purpose is to explore some new features for gitopolis, such as:
 > - Create brew tap for gitopolis
 > - "Add all" functionality: from a given folder, add all git repos recursively
+> - Convert .gitmodules to .gitopolis.toml
 
 # Gitopolis
 
