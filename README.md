@@ -1,5 +1,6 @@
 > [!NOTE]
 > Fork purpose
+> - Create brew tap for gitopolis
 > - "Add all" functionality: from a given folder, add all git repos recursively
 
 # Gitopolis
