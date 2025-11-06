@@ -14,9 +14,11 @@ categories = ["command-line-utilities", "development-tools"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+bstr = { version = "1.12.1", features = ["serde"] }
 clap = { version = "4.5.50", features = ["derive"] }
 env_logger = "0.11.8"
 git2 = "0.20.2"
+gix-url = { version = "0.33.1", features = ["serde"] }
 log = "0.4.28"
 serde = "1.0.228"
 serde_derive = "1.0.228"
@@ -26,6 +28,7 @@ wild = "2.2.1"
 
 [dev-dependencies]
 assert_cmd = "2.0"
+derive_builder = "0.20.2"
 predicates = "3.1"
 tempfile = "3.23.0"
 

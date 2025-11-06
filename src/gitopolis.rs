@@ -1,11 +1,12 @@
 use crate::git::Git;
-use crate::gitopolis::GitopolisError::*;
-use crate::repos::{Repo, RepoInfo, Repos};
+use crate::repos::{Repo, Repos};
 use crate::storage::Storage;
 use crate::tag_filter::TagFilter;
+
 use log::info;
 use std::collections::BTreeMap;
 use std::io;
+use std::path::{Path, PathBuf};
 
 pub struct Gitopolis {
 	storage: Box<dyn Storage>,
@@ -20,14 +21,61 @@ pub enum GitopolisError {
 	IoError { inner: io::Error },
 }
 
-impl GitopolisError {
-	pub fn message(&self) -> String {
+trait SomeError {
+	fn message(&self) -> String;
+}
+
+impl SomeError for GitopolisError {
+	fn message(&self) -> String {
 		match self {
-			GitError { message } => message.to_string(),
-			StateError { message } => message.to_string(),
-			GitRemoteError { message, remote: _ } => message.to_string(),
-			IoError { inner } => inner.to_string(),
+			GitopolisError::GitError { message } => message.to_string(),
+			GitopolisError::StateError { message } => message.to_string(),
+			GitopolisError::GitRemoteError { message, remote: _ } => message.to_string(),
+			GitopolisError::IoError { inner } => inner.to_string(),
 		}
+	}
+}
+
+impl SomeError for git2::Error {
+	fn message(&self) -> String {
+		format!("{}", self)
+	}
+}
+
+impl SomeError for gix_url::parse::Error {
+	fn message(&self) -> String {
+		format!("{}", self)
+	}
+}
+
+impl GitopolisError {
+	pub fn git<S: AsRef<str>>(message: S) -> Self {
+		GitopolisError::GitError {
+			message: format!("{}", message.as_ref())
+		}
+	}
+
+	pub fn git_cannot_open<S: AsRef<str>>(message: S) -> Self {
+		Self::git(format!("Couldn't open git repo: {}", message.as_ref()))
+	}
+
+	pub fn git_error<E: SomeError>(error: E) -> Self {
+		Self::git(error.message())
+	}
+
+	pub fn remote<S: AsRef<str>, R: AsRef<str>>(message: S, remote_name: R) -> Self {
+		GitopolisError::GitRemoteError {
+			message: format!("Error with remote '{}': {}", remote_name.as_ref(), message.as_ref()),
+			remote: remote_name.as_ref().to_string(),
+		}
+	}
+
+	pub fn remote_not_found<R: AsRef<str>>(remote_name: R) -> Self {
+		GitopolisError::remote("Not found.", remote_name)
+	}
+
+	pub fn remote_error<E: SomeError, S: AsRef<str>>(error: E, remote_name: S) -> Self {
+		Self::remote(error.message(), remote_name)
 	}
 }
 
@@ -36,40 +84,46 @@ impl Gitopolis {
 		Self { storage, git }
 	}
 
-	pub fn add(&mut self, repo_folder: String) -> Result<(), GitopolisError> {
+	pub fn add(&mut self, repo_path: &Path) -> Result<(), GitopolisError> {
 		let mut repos = self.load()?;
-		let normalized_folder: String = normalize_folder(repo_folder);
-		if repos.repo_index(normalized_folder.to_owned()).is_some() {
-			info!("{normalized_folder} already added, ignoring.");
+		let normalized_path = normalize_path(repo_path);
+
+		if repos.index_by_path(normalized_path.as_path()).is_some() {
+			info!("{} already added, ignoring.", normalized_path.display());
 			return Ok(());
 		}
-		let remotes = self.git.read_all_remotes(normalized_folder.to_owned())?;
-		repos.add(normalized_folder, remotes);
+
+		let remotes = self.git.read_all_remotes(normalized_path.as_path())?;
+		repos.add_new_repo(normalized_path.as_path(), remotes);
+
+		repos.
+
+
 		self.save(repos)?;
 		Ok(())
 	}
 
-	pub fn remove(&mut self, repo_folders: &[String]) -> Result<(), GitopolisError> {
+	pub fn remove(&mut self, repo_paths: &[String]) -> Result<(), GitopolisError> {
 		let mut repos = self.load()?;
-		repos.remove(normalize_folders(repo_folders));
+		repos.remove_by_names(normalize_paths(repo_paths));
 		self.save(repos)
 	}
 	pub fn add_tag(
 		&mut self,
 		tag_name: &str,
-		repo_folders: &[String],
+		repo_paths: &[String],
 	) -> Result<(), GitopolisError> {
 		let mut repos = self.load()?;
-		repos.add_tag(tag_name, normalize_folders(repo_folders))?;
+		repos.add_tag(tag_name, normalize_paths(repo_paths))?;
 		self.save(repos)
 	}
 	pub fn remove_tag(
 		&mut self,
 		tag_name: &str,
-		repo_folders: &[String],
+		repo_paths: &[String],
 	) -> Result<(), GitopolisError> {
 		let mut repos = self.load()?;
-		repos.remove_tag(tag_name, normalize_folders(repo_folders))?;
+		repos.remove_tag(tag_name, normalize_paths(repo_paths))?;
 		self.save(repos)
 	}
 	/// Filter repos by tag filter with AND/OR logic.
@@ -204,9 +258,9 @@ impl Gitopolis {
 		Ok(())
 	}
 
-	pub fn show(&self, repo_path: &str) -> Result<RepoInfo, GitopolisError> {
+	pub fn show(&self, repo_path: &str) -> Result<Repo, GitopolisError> {
 		let repos = self.load()?;
-		let normalized_path = normalize_folder(repo_path.to_string());
+		let normalized_path = normalize_path(repo_path.to_string());
 
 		let repo = repos
 			.as_vec()
@@ -226,37 +280,37 @@ impl Gitopolis {
 	pub fn clone_and_add(
 		&mut self,
 		url: &str,
-		target_dir: Option<&str>,
+		target_path: Option<&str>,
 		tags: &[String],
 	) -> Result<String, GitopolisError> {
-		// Use target_dir if provided, otherwise extract from URL
-		let folder_name = match target_dir {
-			Some(dir) => dir.to_string(),
+		// Use target_path if provided, otherwise extract from URL
+		let path_name = match target_path {
+			Some(path) => path.to_string(),
 			None => extract_repo_name_from_url(url).ok_or_else(|| StateError {
 				message: format!("Could not extract repository name from URL: {}", url),
 			})?,
 		};
 
 		// Clone the repository
-		self.git.clone(&folder_name, url)?;
+		self.git.clone(&path_name, url)?;
 
 		// Add the repository to gitopolis
-		self.add(folder_name.clone())?;
+		self.add(path_name.clone())?;
 
 		// Add tags if any were specified
 		if !tags.is_empty() {
 			for tag in tags {
-				self.add_tag(tag.as_str(), std::slice::from_ref(&folder_name))?;
+				self.add_tag(tag.as_str(), std::slice::from_ref(&path_name))?;
 			}
 		}
 
-		Ok(folder_name)
+		Ok(path_name)
 	}
 
 	pub fn move_repo(&mut self, old_path: &str, new_path: &str) -> Result<(), GitopolisError> {
 		let mut repos = self.load()?;
-		let normalized_old = normalize_folder(old_path.to_string());
-		let normalized_new = normalize_folder(new_path.to_string());
+		let normalized_old = normalize_path(old_path.to_string());
+		let normalized_new = normalize_path(new_path.to_string());
 
 		// Find the repo in the config
 		let repo = repos
@@ -268,18 +322,18 @@ impl Gitopolis {
 			})?
 			.clone();
 
-		// Create parent directories if they don't exist
+		// Create parent paths if they don't exist
 		if let Some(parent) = std::path::Path::new(&normalized_new).parent() {
 			if !parent.as_os_str().is_empty() {
 				std::fs::create_dir_all(parent).map_err(|e| IoError { inner: e })?;
 			}
 		}
 
-		// Move the actual folder on the filesystem
+		// Move the actual path on the filesystem
 		std::fs::rename(&normalized_old, &normalized_new).map_err(|e| IoError { inner: e })?;
 
 		// Update the config: remove old entry and add new one with same tags/remotes
-		repos.remove(vec![normalized_old]);
+		repos.remove_by_names(vec![normalized_old]);
 		repos.add_with_tags_and_remotes(normalized_new, repo.tags, repo.remotes);
 
 		self.save(repos)?;
@@ -321,21 +375,24 @@ fn parse(state_toml: &str) -> Result<Repos, GitopolisError> {
 	Ok(Repos::new_with_repos(repos))
 }
 
-fn normalize_folders(repo_folders: &[String]) -> Vec<String> {
-	repo_folders
+fn normalize_paths(repo_paths: &[PathBuf]) -> Vec<PathBuf> {
+	repo_paths
 		.iter()
-		.map(|f| normalize_folder(f.to_string()))
+		.map(|f| normalize_path(f))
 		.collect()
 }
 
-fn normalize_folder(repo_folder: String) -> String {
-	repo_folder
-		.trim_end_matches('/')
-		.trim_end_matches('\\')
-		.to_string()
+fn normalize_path(repo_path: &Path) -> PathBuf {
+	let mut result = repo_path.to_path_buf();
+
+	if result.ends_with("/") || result.ends_with("\\") {
+		result.pop();
+	}
+
+	result
 }
 
-/// Extracts the repository name from a git URL to determine the folder name
+/// Extracts the repository name from a git URL to determine the path name
 /// that git clone would use. Handles SSH, HTTPS URLs, and local paths.
 ///
 /// Examples:
@@ -397,12 +454,12 @@ fn test_extract_repo_name_from_url() {
 }
 
 #[test]
-fn test_normalize_folders() {
+fn test_normalize_paths() {
 	let input = vec![
 		"foo".to_string(),
 		"bar/".to_string(),  // *nix
 		"baz\\".to_string(), // windows
 	];
-	let output = normalize_folders(&input);
+	let output = normalize_paths(&input);
 	assert_eq!(output, vec!["foo", "bar", "baz"]);
 }

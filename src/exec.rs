@@ -1,6 +1,8 @@
 use crate::repos::Repo;
+
 use std::env;
 use std::io::{BufRead, BufReader, Error, Read};
+use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::thread;
 
@@ -10,10 +12,10 @@ pub fn exec(exec_args: Vec<String>, repos: Vec<Repo>, oneline: bool) {
 	for repo in &repos {
 		if !exists(&repo.path) {
 			if oneline {
-				println!("{}\tRepo folder missing, skipped.", &repo.path);
+				println!("{}\tRepo folder missing, skipped.", repo.path.display());
 			} else {
 				println!();
-				println!("🏢 {}> Repo folder missing, skipped.", &repo.path);
+				println!("🏢 {}> Repo folder missing, skipped.", repo.path.display());
 			}
 			skipped_count += 1;
 			continue;
@@ -22,8 +24,8 @@ pub fn exec(exec_args: Vec<String>, repos: Vec<Repo>, oneline: bool) {
 			let (output, success) =
 				repo_exec_oneline(&repo.path, &exec_args).expect("Failed to execute command.");
 			match output {
-				Some(output_text) => println!("{}\t{}", &repo.path, output_text),
-				None => println!("{}\t", &repo.path),
+				Some(output_text) => println!("{}\t{}", repo.path.display(), output_text),
+				None => println!("{}\t", repo.path.display()),
 			}
 			if !success {
 				error_count += 1;
@@ -48,10 +50,10 @@ pub fn exec(exec_args: Vec<String>, repos: Vec<Repo>, oneline: bool) {
 	}
 }
 
-fn exists(repo_path: &String) -> bool {
-	let mut path = env::current_dir().expect("failed to get current working directory");
-	path.push(repo_path);
-	path.exists() && path.is_dir()
+fn exists(repo_path: &Path) -> bool {
+	let mut current_path = env::current_dir().expect("failed to get current working directory");
+	current_path.push(repo_path);
+	current_path.exists() && current_path.is_dir()
 }
 
 fn needs_quoting(arg: &str) -> bool {
@@ -148,9 +150,9 @@ fn quote_arg(arg: &str) -> String {
 	}
 }
 
-fn repo_exec(path: &str, exec_args: &[String]) -> Result<ExitStatus, Error> {
+fn repo_exec(path: &Path, exec_args: &[String]) -> Result<ExitStatus, Error> {
 	println!();
-	println!("🏢 {}> {}", path, format_args_for_display(exec_args));
+	println!("🏢 {}> {}", path.display(), format_args_for_display(exec_args));
 
 	// If single argument, pass directly to shell for interpretation (supports pipes, etc.)
 	// If multiple arguments, pass via positional parameters to avoid quoting issues
@@ -252,7 +254,7 @@ fn repo_exec(path: &str, exec_args: &[String]) -> Result<ExitStatus, Error> {
 	Ok(exit_code)
 }
 
-fn repo_exec_oneline(path: &str, exec_args: &[String]) -> Result<(Option<String>, bool), Error> {
+fn repo_exec_oneline(path: &Path, exec_args: &[String]) -> Result<(Option<String>, bool), Error> {
 	// If single argument, pass directly to shell for interpretation (supports pipes, etc.)
 	// If multiple arguments, pass via positional parameters to avoid quoting issues
 	#[cfg(unix)]
