@@ -1,4 +1,4 @@
-use crate::repos::Repo;
+use crate::repos::GopRepo;
 
 use std::env;
 use std::io::{BufRead, BufReader, Error, Read};
@@ -6,7 +6,7 @@ use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::thread;
 
-pub fn exec(exec_args: Vec<String>, repos: Vec<Repo>, oneline: bool) {
+pub fn exec(exec_args: Vec<String>, repos: Vec<GopRepo>, oneline: bool) {
 	let mut error_count = 0;
 	let mut skipped_count = 0;
 	for repo in &repos {

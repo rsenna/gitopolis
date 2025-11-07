@@ -1,5 +1,5 @@
 use gitopolis::git::Git;
-use gitopolis::gitopolis::{Gitopolis, GitopolisError};
+use gitopolis::gitopolis::{Gitopolis, GopError};
 use gitopolis::storage::Storage;
 use gitopolis::tag_filter::TagFilter;
 
@@ -367,7 +367,7 @@ url = \"git://example.org/test_url\"\
 	let mut gitopolis = Gitopolis::new(storage, git);
 
 	gitopolis
-		.remove(&["test_repo/".to_string()])
+		.remove_repos_by_name(&["test_repo/".to_string()])
 		.expect("Failed to remove repo");
 }
 
@@ -378,7 +378,7 @@ fn remove_unknown() {
 	let mut gitopolis = Gitopolis::new(storage, git);
 
 	gitopolis
-		.remove(&["non-existent-repo".to_string()])
+		.remove_repos_by_name(&["non-existent-repo".to_string()])
 		.expect("Failed");
 }
 
@@ -494,14 +494,14 @@ impl FakeGit {
 }
 
 impl Git for FakeGit {
-	fn read_url(&self, _path: String, _remote_name: String) -> Result<String, GitopolisError> {
+	fn read_remote_url(&self, _path: String, _remote_name: String) -> Result<String, GopError> {
 		Ok("git://example.org/test_url".to_string())
 	}
 
 	fn read_all_remotes(
 		&self,
 		_path: String,
-	) -> Result<std::collections::BTreeMap<String, String>, GitopolisError> {
+	) -> Result<std::collections::BTreeMap<String, String>, GopError> {
 		let mut remotes = std::collections::BTreeMap::new();
 		remotes.insert(
 			"origin".to_string(),
@@ -514,7 +514,7 @@ impl Git for FakeGit {
 		// No-op for fake implementation
 	}
 
-	fn clone(&self, path: &str, url: &str) -> Result<(), GitopolisError> {
+	fn clone(&self, path: &str, url: &str) -> Result<(), GopError> {
 		(self.clone_callback)(path.to_owned(), url.to_owned());
 		Ok(())
 	}

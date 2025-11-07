@@ -1,11 +1,8 @@
-use crate::gitopolis::GitopolisError;
-use crate::gitopolis::GitopolisError::{GitError, GitRemoteError};
-use crate::git_types::{GitRemotes, GitUrl, GitUrlBuf};
+use crate::gitopolis::GopError;
+use crate::gop_types::{GopRemoteUrl, GopRemoteUrls, GopUrl, GopUrlBuf};
 
 use git2::{Remote, Repository};
-use std::collections::BTreeMap;
 use std::path::Path;
-use std::process::Command;
 
 // TODO: instead of "recreating" types like Remote[s] and such, why not just reuse types from gi2|gix?
 // They are supposed to have a much better, memory efficient implementation. Besides, it's a waste of time and
@@ -15,93 +12,88 @@ use std::process::Command;
 // NOTE: Using AsRef extensively
 
 pub trait Git {
-	fn read_url<P: AsRef<Path>, R: AsRef<str>>(&self, path: P, remote_name: R) -> Result<GitUrlBuf, GitopolisError>;
-	fn read_all_remotes<P: AsRef<Path>>(&self, path: P) -> Result<GitRemotes, GitopolisError>;
-	fn add_remote<P: AsRef<Path>, S: AsRef<str>, U: AsRef<GitUrl>>(&self, path: P, remote_name: S, url: U);
-	fn clone<P: AsRef<Path>, U: AsRef<GitUrl>>(&self, path: P, url: U) -> Result<(), GitopolisError>;
+	fn read_remote_url<P: AsRef<Path>, R: AsRef<str>>(&self, path: P, remote_name: R) ->
+		Result<GopRemoteUrl, GopError>;
+	fn read_all_remotes<P: AsRef<Path>>(&self, path: P) -> Result<GopRemoteUrls, GopError>;
+	fn add_remote<P: AsRef<Path>, S: AsRef<str>, U: AsRef<GopUrl>>(&self, path: P, remote_name: S, url: U) ->
+		Result<(), GopError>;
+	fn clone<P: AsRef<Path>, U: AsRef<GopUrl>>(&self, path: P, url: U) -> Result<(), GopError>;
 }
 
 pub struct GitImpl {}
 
 impl Git for GitImpl {
-	fn read_url<P: AsRef<Path>, R: AsRef<str>>(&self, path: P, remote_name: R) -> Result<GitUrlBuf, GitopolisError> {
+	fn read_remote_url<P: AsRef<Path>, R: AsRef<str>>(&self, path: P, remote_name: R) ->
+		Result<GopRemoteUrl, GopError> {
+
 		let repository = Repository::open(path)
-			.map_err(|e| GitopolisError::git_error(e))?;
+			.map_err(|e| GopError::git_error(e))?;
 
 		let remote: Remote = repository
 			.find_remote(remote_name.as_ref())
-			.map_err(|e| GitopolisError::remote_error(e, remote_name))?;
+			.map_err(|e| GopError::remote_error(e, remote_name.as_ref()))?;
 
 		let url_str = remote.url()
-			.ok_or_else(|| GitopolisError::remote_not_found("remote is empty", ""))?;
+			.ok_or_else(|| GopError::remote_not_found(""))?;
 
-		let url = GitUrlBuf::try_from(url_str)
-			.map_err(|e| GitopolisError::remote_error(e, ""))?;
+		let url = GopUrlBuf::try_from(url_str)
+			.map_err(|e| GopError::remote_error(e, ""))?;
 
-		Ok(url)
+		Ok( (remote_name.as_ref().to_string(), url) )
 	}
 
-	fn read_all_remotes<P: AsRef<Path>>(&self, path: P) -> Result<GitRemotes, GitopolisError> {
+	fn read_all_remotes<P: AsRef<Path>>(&self, path: P) -> Result<GopRemoteUrls, GopError> {
 		let repository = Repository::open(path)
-			.map_err(|e| GitError { message: format!("Couldn't open git repo. {}", e.message()) })?;
+			.map_err(|e| GopError::Git {
+				message: format!("Couldn't open git repo. {}", e.message()) })?;
 
 		let remote_names = repository.remotes()
-			.map_err(|error| GitError { message: format!("Failed to read remotes. {}", error.message()) })?;
+			.map_err(|e| GopError::Git {
+				message: format!("Failed to read remotes. {}", e.message()) })?;
 
-		let mut remotes = BTreeMap::new();
+		let mut gop_remotes = GopRemoteUrls::new();
 
 		for remote_name in remote_names.iter().flatten() {
 			if let Ok(remote) = repository.find_remote(remote_name) {
 				if let Some(url) = remote.url() {
-					remotes.insert(remote_name.to_string(), url.to_string());
+					let gop_url_buf = GopUrlBuf::try_from(url.to_string())
+						.map_err(|e| GopError::remote_error(e, remote_name))?;
+
+					gop_remotes.insert(remote_name.to_string(), gop_url_buf);
 				}
 			}
 		}
 
-		Ok(remotes)
+		Ok(gop_remotes)
 	}
 
-	fn add_remote(&self, path: &Path, remote_name: &str, url: &str) {
-		let output = Command::new("git")
-			.current_dir(path)
-			.args(
-				[
-					"remote".to_string(),
-					"add".to_string(),
-					remote_name.to_string(),
-					url.to_string(),
-				]
-				.to_vec(),
-			)
-			.output()
-			.expect("Error running git remote add");
-		if !output.status.success() {
-			let stderr =
-				String::from_utf8(output.stderr).expect("Error converting stderr to string");
-			eprintln!("Warning: Failed to add remote {remote_name}: {stderr}");
-		}
+	fn add_remote<P: AsRef<Path>, S: AsRef<str>, U: AsRef<GopUrl>>(&self, path: P, remote_name: S, url: U) ->
+		Result<(), GopError> {
+
+		let git2_repo = git2::Repository::discover(path)
+			.map_err(|e| GopError::git_error(e))?;
+
+		git2_repo.remote_add_fetch(remote_name.as_ref(), url.as_ref().to_string().as_str())
+			.map_err(|e| GopError::remote_error(e, remote_name.as_ref()))?;
+
+		git2_repo.remote_add_push(remote_name.as_ref(), url.as_ref().to_string().as_str())
+			.map_err(|e| GopError::remote_error(e, remote_name.as_ref()))?;
+
+		Ok(())
 	}
 
-	fn clone(&self, path: &Path, url: &str) -> Result<(), GitopolisError> {
-		if Path::new(path).exists() {
-			println!("🏢 {}> Already exists, skipped.", path.display());
+	fn clone<P: AsRef<Path>, U: AsRef<GopUrl>>(&self, path: P, url: U) -> Result<(), GopError> {
+		let url_string = url.as_ref().to_string();
+
+		if path.as_ref().exists() {
+			println!("🏢 {}> Already exists, skipped.", path.as_ref().display());
 			return Ok(());
 		}
-		println!("🏢 {}> Cloning {} ...", path.display(), url);
-		let output = Command::new("git")
-			.args(["clone".to_string(), url.to_string(), path.display().to_string()].to_vec())
-			.output()
-			.expect("Error running git clone");
-		let stdout = String::from_utf8(output.stdout).expect("Error converting stdout to string");
-		let stderr = String::from_utf8(output.stderr).expect("Error converting stderr to string");
-		println!("{stdout}");
-		println!("{stderr}");
 
-		if !output.status.success() {
-			return Err(GitError {
-				message: format!("Failed to clone {} to {}", url, path.display()),
-			});
-		}
+		println!("🏢 {}> Cloning {} ...", path.as_ref().display(), url_string.as_str());
+
+		let _clone = Repository::clone(url_string.as_str(), path.as_ref())
+			.map_err(|e| GopError::git_error(e))?;
 
 		Ok(())
 	}

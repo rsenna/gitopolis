@@ -1,8 +1,8 @@
 use clap::{Parser, Subcommand};
 use gitopolis::exec::exec;
 use gitopolis::git::GitImpl;
-use gitopolis::gitopolis::Gitopolis;
-use gitopolis::repos::Repo;
+use gitopolis::gitopolis::{Gitopolis, SomeError};
+use gitopolis::repos::GopRepo;
 use gitopolis::storage::StorageImpl;
 use gitopolis::tag_filter::TagFilter;
 use log::LevelFilter;
@@ -95,9 +95,10 @@ enum Commands {
 		tag: Vec<String>,
 	},
 	/// Show detailed information about a repository including tags and remotes
+	/// `repo_id` might be either the repository name or path
 	Show {
 		#[clap(required = true)]
-		repo_folder: String,
+		repo_id: String,
 	},
 	/// Move a repository to a new location, updating gitopolis configuration
 	Move {
@@ -127,7 +128,7 @@ fn main() {
 		Some(Commands::Add { repo_folders }) => add(repo_folders.to_owned()),
 		Some(Commands::Remove { repo_folders }) => {
 			init_gitopolis()
-				.remove(repo_folders)
+				.remove_repos_by_name(repo_folders)
 				.expect("Failed to remove repository");
 		}
 		Some(Commands::List {
@@ -167,18 +168,21 @@ fn main() {
 			remove,
 		}) => {
 			let tags: Vec<&str> = tag_name.split(',').map(|s| s.trim()).collect();
+
 			for tag in tags {
 				let result = if *remove {
 					init_gitopolis().remove_tag(tag, repo_folders)
 				} else {
 					init_gitopolis().add_tag(tag, repo_folders)
 				};
+
 				if let Err(error) = result {
 					eprintln!("Error: {}", error.message());
 					std::process::exit(1);
 				}
 			}
 		}
+
 		Some(Commands::Tags { long }) => list_tags(*long),
 		Some(Commands::Sync {
 			read_remotes,
@@ -186,6 +190,7 @@ fn main() {
 			tag: tag_args,
 		}) => {
 			let filter = TagFilter::from_cli_args(tag_args);
+
 			if *read_remotes {
 				init_gitopolis()
 					.sync_read_remotes(&filter)
@@ -199,9 +204,11 @@ fn main() {
 				std::process::exit(1);
 			}
 		}
-		Some(Commands::Show { repo_folder }) => {
-			show(repo_folder);
+
+		Some(Commands::Show { repo_id }) => {
+			show(repo_id);
 		}
+
 		Some(Commands::Move { entity }) => match entity {
 			MoveEntity::Repo { old_path, new_path } => {
 				match init_gitopolis().move_repo(old_path, new_path) {
@@ -215,6 +222,7 @@ fn main() {
 				}
 			}
 		},
+
 		None => {
 			panic!("no command") // this doesn't happen because help shows instead
 		}
@@ -306,7 +314,7 @@ fn add(repo_folders: Vec<String>) {
 	}
 }
 
-fn list(repos: Vec<Repo>, long: bool) {
+fn list(repos: Vec<GopRepo>, long: bool) {
 	if repos.is_empty() {
 		println!("No repos");
 		std::process::exit(2);
@@ -347,9 +355,10 @@ fn list_tags(long: bool) {
 	}
 }
 
-fn show(repo_folder: &str) {
+fn show(repo_id: &str) {
 	let gitopolis = init_gitopolis();
-	match gitopolis.show(repo_folder) {
+
+	match gitopolis.show(repo_id) {
 		Ok(repo_info) => {
 			println!("Tags:");
 			if repo_info.tags.is_empty() {
