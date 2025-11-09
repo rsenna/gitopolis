@@ -1,5 +1,5 @@
 use crate::git::Git;
-use crate::repos::{GopRepo, GopRepos};
+use crate::repos::{GopRepo, GopRepoBuilder, GopRepoBuilderError, GopRepos};
 use crate::storage::Storage;
 use crate::tag_filter::TagFilter;
 
@@ -48,6 +48,19 @@ impl SomeError for gix_url::parse::Error {
 
 impl SomeError for Infallible {
 	fn message(&self) -> String { format!("{}", self) }
+}
+
+impl SomeError for GopRepoBuilderError {
+	fn message(&self) -> String {
+		match self {
+			GopRepoBuilderError::UninitializedField(msg) => {
+				format!("Uninitialized field: {}", msg)
+			}
+			GopRepoBuilderError::ValidationError(message) => {
+				format!("Validation error: {}", message)
+			}
+		}
+	}
 }
 
 // TODO: find some way of avoid code duplication for GopError helper methods
@@ -293,11 +306,14 @@ impl Gitopolis {
 		Ok(())
 	}
 
-	fn show_by_name(&self, repo_name: &str) -> Result<Option<GopRepo>, GopError> {
-		todo!()
+	fn show_by_name(&self, repo_name: &str) -> Result<&mut GopRepo, GopError> {
+		let mut repos = self.load()?;
+		let repo = repos.find_by_name(repo_name)
+			.ok_or_else(|| GopError::state_repo_not_found(repo_name.to_string()))?;
+		Ok(repo)
 	}
 
-	fn show_by_path(&self, repo_path: &Path) -> Result<Option<GopRepo>, GopError> {
+	fn show_by_path(&self, repo_path: &Path) -> Result<GopRepo, GopError> {
 		let mut repos = self.load()?;
 		let normalized_path = normalize_path(repo_path);
 
@@ -305,13 +321,9 @@ impl Gitopolis {
 		let repo = repos
 			.into_iter()
 			.find(|r| r.path == normalized_path)
-			.ok_or_else(|| GopError::state_error_repo_not_found(e, repo_path.as_ref()));
+			.ok_or_else(|| GopError::state_repo_not_found(repo_path.to_string_lossy().to_string()))?;
 
-		Ok(RepoInfo {
-			path: repo.path.clone(),
-			tags: repo.tags.clone(),
-			remotes: repo.remotes.clone(),
-		})
+		Ok(repo)
 	}
 
 	pub fn clone_and_add<U: AsRef<GopUrl>, P: AsRef<Path>, T: AsRef<GopTags>>(
@@ -400,9 +412,10 @@ fn serialize(repos: &GopRepos) -> Result<String, GopError> {
 	})
 }
 
+// TODO: should not work
 fn parse(state_toml: &str) -> Result<GopRepos, GopError> {
 	let mut named_container: BTreeMap<String, Vec<GopRepo>> =
-		toml::from_str(state_toml).map_err(|error| StateError {
+		toml::from_str(state_toml).map_err(|error| GopError::state {
 			message: format!("Failed to parse state data as valid TOML. {error}"),
 		})?;
 

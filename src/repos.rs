@@ -1,4 +1,6 @@
-use crate::gitopolis::GopError;
+#[allow(unused_imports)]
+// BUG: SomeError import *is* required, but IDE says otherwise.
+use crate::gitopolis::{GopError, SomeError};
 use crate::gop_types::{GopUrl, GopUrlBuf, GopTags, GopRemoteUrls};
 
 use log::info;
@@ -6,8 +8,8 @@ use serde_derive::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::vec::IntoIter;
+use bstr::ByteSlice;
 use derive_builder::Builder;
-use gix_url::Url;
 
 type GopRemotes = BTreeMap<String, GopRemote>;
 type GopRepoVec = Vec<GopRepo>;
@@ -48,25 +50,24 @@ pub struct GopRepo {
 
 impl GopRepoBuilder {
 	fn default_name(&self) -> Result<String, GopRepoBuilderError> {
-		self.path
+		self.path.as_ref()
 			.and_then(|p| GopRepo::get_name_from_path(p.as_path()))
 			.ok_or_else(|| GopRepoBuilderError::from("Could not extract name from path".to_string()))
-		}
 	}
 }
 
 impl GopRepo {
-	pub fn new(path: &Path) -> Result<Self, GopError> {
+	pub fn new(path: &Path) -> Result<GopRepo, GopError> {
 		GopRepoBuilder::default()
 			.path(path)
-			.build().map_err(|e| format!("Failed to create repo: {}", e))
+			.build().map_err(|e| GopError::state_error(e))
 	}
 
 	pub fn new_with_path_and_remotes(path: &Path, remotes_arg: GopRemoteUrls) -> Result<Self, GopError> {
 		GopRepoBuilder::default()
 			.path(path)
 			.remotes(remotes_arg.into_remotes())
-			.build().map_err(|e|  format!("Failed to create repo: {}", e))
+			.build().map_err(|e| GopError::remote_error(e, "(multiple)") )
 	}
 
 	/// Extracts the repository name from a git URL or local path, to determine the path name
@@ -114,12 +115,37 @@ pub struct GopRemote {
 	pub url: GopUrlBuf,
 }
 
+impl GopRemote {
+	pub fn new(name: &str, url: &GopUrl) -> Result<Self, GopError> {
+		let name = name.to_string();
+		let url = GopUrlBuf::try_from(url)
+			.map_err(|e| GopError::state_error(e))?;
+
+		Ok(Self { name, url })
+	}
+}
+
 impl IntoIterator for GopRepos {
 	type Item = GopRepo;
 	type IntoIter = IntoIter<GopRepo>;
 
 	fn into_iter(self) -> Self::IntoIter {
 		self.repos.into_iter()
+	}
+}
+
+impl <'repo> TryFrom<git2::Remote<'repo>> for GopRemote {
+	type Error = GopError;
+
+	fn try_from(value: git2::Remote<'repo>) -> Result<Self, Self::Error> {
+		let name = value.name().ok_or_else(|| GopError::remote_not_found(""))?.to_string();
+		let url_str = value.url().ok_or_else(|| GopError::remote_not_found(&name))?;
+		let url = GopUrlBuf::try_from(url_str)
+			.map_err(|e| GopError::remote_error(e, &name))?;
+
+		let remote = GopRemote::new(name.as_str(), url.to_bstring().as_bstr())?;
+
+		Ok(remote)
 	}
 }
 
@@ -253,7 +279,7 @@ fn idempotent_tag() -> Result<(), GopError> {
 		.path(path)
 		.remotes(remotes)
 		.build()
-		.map_err(|e| e.to_string())?;
+		.map_err(|e| GopError::state(e.message()))?;
 
 	assert_eq!(repo.name, NAME);
 
