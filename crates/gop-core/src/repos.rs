@@ -1,55 +1,39 @@
+use std::borrow::Cow;
 #[allow(unused_imports)]
-// BUG: SomeError import *is* required, but IDE says otherwise.
+
+// TODO: SomeError import *is* required, but IDE says otherwise.
+
 use crate::gitopolis::{GopError, SomeError};
-use crate::gop_types::{GopUrl, GopUrlBuf, GopTags, GopRemoteUrls};
+use crate::gop_types::{GopUrl, GopUrlBuf, GopTags};
 
 use log::info;
-use serde_derive::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::vec::IntoIter;
 use bstr::ByteSlice;
 use derive_builder::Builder;
+use crate::remotes::GopRemotes;
 
-type GopRemotes = BTreeMap<String, GopRemote>;
-type GopRepoVec = Vec<GopRepo>;
+type GopRepoVec<'a> = Vec<GopRepo<'a>>;
 
-trait GopRemoteUrlsEx {
-	fn into_remotes(self) -> GopRemotes;
+#[derive(Debug, Default)]
+pub struct GopRepos<'a> {
+	repos: GopRepoVec<'a>,
 }
 
-impl GopRemoteUrlsEx for GopRemoteUrls {
-	fn into_remotes(self) -> GopRemotes {
-		let mut remotes = GopRemotes::new();
-
-		for (name, url) in self {
-			let remote = GopRemote { name: name.clone(), url };
-			remotes.insert(name, remote);
-		}
-
-		remotes
-	}
-}
-
-#[derive(Debug, Serialize, Deserialize, Default)]
-pub struct GopRepos {
-	repos: GopRepoVec,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone, Builder)]
+#[derive(Debug, Clone, Builder)]
 #[builder(setter(into))]
-pub struct GopRepo {
-	pub path: PathBuf,
+pub struct GopRepo<'a> {
+	pub path: Cow<'a, Path>,
 	#[builder(default = "self.default_name()?")]
-	pub name: String,
-	pub tags: GopTags,
-	pub remotes: GopRemotes,
+	pub name: Cow<'a, str>,
+	pub tags: GopTags<'a>,
+	pub remotes: GopRemotes<'a>,
 }
 
 // TODO: Use GopError instead of String
 
-impl GopRepoBuilder {
-	fn default_name(&self) -> Result<String, GopRepoBuilderError> {
+impl <'a> GopRepoBuilder<'a> {
+	fn default_name(&self) -> Result<&'a str, GopRepoBuilderError> {
 		self.path.as_ref()
 			.and_then(|p| GopRepo::get_name_from_path(p.as_path()))
 			.ok_or_else(|| GopRepoBuilderError::from("Could not extract name from path".to_string()))
@@ -70,7 +54,7 @@ impl GopRepo {
 			.build().map_err(|e| GopError::remote_error(e, "(multiple)") )
 	}
 
-	/// Extracts the repository name from a git URL or local path, to determine the path name
+	/// Extracts the repository name from a git URL or local path to determine the path name
 	/// that git clone would use. Handles SSH, HTTPS URLs, and local paths.
 	///
 	/// Examples:
@@ -99,7 +83,10 @@ impl GopRepo {
 	}
 
 	pub(crate) fn add_remote(&mut self, remote: GopRemote) {
-		self.remotes.insert(remote.name.clone(), remote);
+		self.remotes.insert(
+			remote.remote_name.clone(),
+			remote.url.clone()
+		);
 	}
 
 	pub(crate) fn replace_remotes(&mut self, remotes_arg: GopRemoteUrls) {
@@ -109,21 +96,6 @@ impl GopRepo {
 	}
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct GopRemote {
-	pub name: String,
-	pub url: GopUrlBuf,
-}
-
-impl GopRemote {
-	pub fn new(name: &str, url: &GopUrl) -> Result<Self, GopError> {
-		let name = name.to_string();
-		let url = GopUrlBuf::try_from(url)
-			.map_err(|e| GopError::state_error(e))?;
-
-		Ok(Self { name, url })
-	}
-}
 
 impl IntoIterator for GopRepos {
 	type Item = GopRepo;

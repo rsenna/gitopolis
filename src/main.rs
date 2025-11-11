@@ -1,12 +1,13 @@
 use clap::{Parser, Subcommand};
 use gitopolis::exec::exec;
 use gitopolis::git::GitImpl;
-use gitopolis::gitopolis::{Gitopolis, SomeError};
+use gitopolis::gitopolis::{Gitopolis, GopError, SomeError};
 use gitopolis::repos::GopRepo;
 use gitopolis::storage::StorageImpl;
 use gitopolis::tag_filter::TagFilter;
 use log::LevelFilter;
 use std::io::Write;
+use std::path::PathBuf;
 
 /// A CLI tool for managing multiple git repositories
 /// License: A-GPL v3.0
@@ -125,12 +126,15 @@ fn main() {
 		.init();
 
 	match &Args::parse_from(wild::args()).command {
-		Some(Commands::Add { repo_folders }) => add(repo_folders.to_owned()),
+		Some(Commands::Add { repo_folders }) =>
+			add(repo_folders.to_owned()),
+
 		Some(Commands::Remove { repo_folders }) => {
 			init_gitopolis()
 				.remove_repos_by_name(repo_folders)
 				.expect("Failed to remove repository");
 		}
+
 		Some(Commands::List {
 			tag: tag_args,
 			long,
@@ -308,10 +312,13 @@ fn init_gitopolis() -> Gitopolis {
 	)
 }
 
-fn add(repo_folders: Vec<String>) {
+fn add(repo_folders: Vec<String>) -> Result((), GopError) {
 	for repo_folder in repo_folders {
-		init_gitopolis().add(repo_folder).expect("Add failed");
+		let path = PathBuf::from(repo_folder);
+		init_gitopolis().add(path.as_ref())?
 	}
+
+	Ok(())
 }
 
 fn list(repos: Vec<GopRepo>, long: bool) {

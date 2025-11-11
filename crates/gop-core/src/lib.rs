@@ -7,3 +7,4 @@ pub mod repos;
 pub mod storage;
 pub mod tag_filter;
 pub mod gop_types;
+pub mod remotes;

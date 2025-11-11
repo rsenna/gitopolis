@@ -121,6 +121,8 @@ impl GopError {
 	}
 }
 
+const ORIGIN: &'static str = "origin";
+
 impl Gitopolis {
 	pub fn new(storage: Box<dyn Storage>, git: Box<dyn Git>) -> Self {
 		Self { storage, git }
@@ -192,8 +194,8 @@ impl Gitopolis {
 
 		for repo in repos {
 			// Determine which remote to use for cloning (prefer origin)
-			let clone_remote_name = if repo.remotes.contains_key("origin") {
-				"origin"
+			let clone_remote_name = if repo.remotes.contains_key(ORIGIN) {
+				ORIGIN
 			} else {
 				repo.remotes.keys().next().map(|s| s.as_str()).unwrap_or("")
 			};
@@ -326,7 +328,7 @@ impl Gitopolis {
 		Ok(repo)
 	}
 
-	pub fn clone_and_add<U: AsRef<GopUrl>, P: AsRef<Path>, T: AsRef<GopTags>>(
+	pub fn clone_and_add<NU: AsRef<GopUrl>, P: AsRef<Path>, T: AsRef<GopTags>>(
 		&mut self,
 		url: U,
 		target_path: P,

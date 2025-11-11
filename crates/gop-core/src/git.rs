@@ -1,9 +1,9 @@
 use crate::gitopolis::GopError;
-use crate::gop_types::{GopRemoteUrl, GopRemoteUrls, GopUrl, GopUrlBuf};
 
 use git2::{Remote, Repository};
 use std::path::Path;
-use crate::repos::GopRemote;
+use crate::gop_types::{GopUrl, GopUrlBuf};
+use crate::remotes::GopRemotes;
 // TODO: instead of "recreating" types like Remote[s] and such, why not just reuse types from gi2|gix?
 // They are supposed to have a much better, memory efficient implementation. Besides, it's a waste of time and
 // resources to keep converting from our internal representation against their(s).
@@ -12,8 +12,8 @@ use crate::repos::GopRemote;
 // NOTE: Using AsRef extensively
 
 pub trait Git {
-	fn read_remote_url(&self, path: &Path, remote_name: &str) -> Result<GopRemoteUrl, GopError>;
-	fn read_all_remotes(&self, path: &Path) -> Result<GopRemoteUrls, GopError>;
+	fn read_remote_url(&self, path: &Path, remote_name: &str) -> Result<GopRemote, GopError>;
+	fn read_all_remotes(&self, path: &Path) -> Result<GopRemotes, GopError>;
 	fn add_remote(&self, path: &Path, remote_name: &str, url: &GopUrl);
 	fn clone(&self, path: &Path, url: &GopUrl) -> Result<(), GopError>;
 }
@@ -21,7 +21,7 @@ pub trait Git {
 pub struct GitImpl {}
 
 impl Git for GitImpl {
-	fn read_remote_url(&self, path: &Path, remote_name: &str) -> Result<GopRemoteUrl, GopError> {
+	fn read_remote_url(&self, path: &Path, remote_name: &str) -> Result<GopRemote, GopError> {
 		let repository = Repository::open(path)
 			.map_err(|e| GopError::git_error(e))?;
 
@@ -30,15 +30,16 @@ impl Git for GitImpl {
 			.map_err(|e| GopError::remote_error(e, remote_name))?;
 
 		let url_str = remote.url()
-			.ok_or_else(|| GopError::remote_not_found(""))?;
+			.ok_or_else(|| GopError::remote_not_found(remote_name))?;
 
 		let url = GopUrlBuf::try_from(url_str)
-			.map_err(|e| GopError::remote_error(e, ""))?;
+			.map_err(|e| GopError::remote_error(e, remote_name))?;
 
-		Ok( (remote_name.to_string(), url) )
+		let gop_remote = GopRemote::new(remote_name, url.path.as_ref())?;
+		Ok(gop_remote)
 	}
 
-	fn read_all_remotes(&self, path: &Path) -> Result<GopRemoteUrls, GopError> {
+	fn read_all_remotes(&self, path: &Path) -> Result<GopRemotes, GopError> {
 		let repository = Repository::open(path)
 			.map_err(|e| GopError::Git {
 				message: format!("Couldn't open git repo. {}", e.message()) })?;
@@ -47,13 +48,13 @@ impl Git for GitImpl {
 			.map_err(|e| GopError::Git {
 				message: format!("Failed to read remotes. {}", e.message()) })?;
 
-		let mut gop_remotes = GopRemoteUrls::new();
+		let mut gop_remotes = GopRemotes::new();
 
 		let result: Vec<Remote> = remote_names.iter()
 			.filter_map(|remote_name| {
 				remote_name.and_then(|rn| repository.find_remote(rn).ok())
 			})
-			.map(|r| GopRemote::from())
+			.map(|r| GopRemote::from(r))
 			.collect();
 
 		for remote_name in remote_names.iter().flatten() {
