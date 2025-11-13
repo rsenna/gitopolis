@@ -12,6 +12,13 @@ pub struct GopUrlBuf<'a>(&'a Url);
 #[derive(Clone, Debug, Display)]
 pub struct GopUrl<'a>(&'a BStr);
 
+pub enum GopUrlError {
+	#[error("Invalid URL")]
+	InvalidUrl,
+}
+
+
+
 impl<'a> TryFrom<&'a Cow<'a, Url>> for GopUrl<'a> {
 	type Error = ();
 
