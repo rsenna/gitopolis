@@ -1,7 +1,7 @@
 fn main() {
     println!("cargo:rerun-if-changed=scripts/build.rs");
     println!(
-        "cargo:rustc-env=GOP_FEATURES={}",
+        "cargo:rustc-env=VAQ_FEATURES={}",
         std::env::var("CARGO_CFG_FEATURE").expect("set by cargo")
     );
 

@@ -2,9 +2,9 @@ extern crate core;
 
 pub mod exec;
 pub mod git;
-pub mod gitopolis;
+pub mod remotes;
 pub mod repos;
 pub mod storage;
 pub mod tag_filter;
-pub mod gop_types;
-pub mod remotes;
+pub mod vaq_git;
+pub mod vaq_types;

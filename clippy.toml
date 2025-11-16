@@ -1,0 +1,3 @@
+result_large_err = "allow"
+unchecked_duration_subtraction = "warn"
+used_underscore_binding = "warn"

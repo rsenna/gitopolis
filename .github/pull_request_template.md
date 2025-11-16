@@ -1,5 +1,5 @@
 <!--
-Thank you for improving Gitopolis!
+Thank you for improving Vaquera!
 -->
 
 ## Release notes summary — What our users need to know

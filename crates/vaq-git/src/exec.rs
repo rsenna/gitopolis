@@ -1,4 +1,4 @@
-use crate::repos::GopRepo;
+use crate::repos::VaqRepo;
 
 use std::env;
 use std::io::{BufRead, BufReader, Error, Read};
@@ -6,7 +6,7 @@ use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::thread;
 
-pub fn exec(exec_args: Vec<String>, repos: Vec<GopRepo>, oneline: bool) {
+pub fn exec(exec_args: Vec<String>, repos: Vec<VaqRepo>, oneline: bool) {
 	let mut error_count = 0;
 	let mut skipped_count = 0;
 	for repo in &repos {
@@ -81,7 +81,7 @@ fn needs_quoting(arg: &str) -> bool {
 ///
 /// By the time we receive the arguments here, the shell has already parsed
 /// the user's input and consumed the original quotes. For example:
-/// - User types: `gitopolis exec -- git log --since="One Week"`
+/// - User types: `vaquera exec -- git log --since="One Week"`
 /// - Shell parses this into separate args: `["git", "log", "--since=One Week"]`
 /// - We receive: The value "One Week" with no information about original quoting
 ///

@@ -7,11 +7,11 @@ use tempfile::{tempdir, TempDir};
 
 #[test]
 fn help() {
-	gitopolis_executable()
+	vaquera_executable()
 		.arg("help")
 		.assert()
 		.success()
-		.stdout(predicate::str::contains("Usage: gitopolis"));
+		.stdout(predicate::str::contains("Usage: vaquera"));
 }
 
 // only windows (cmd/powerhell) needs to have globs expanded for it, real OS's do it for you in the shell
@@ -20,12 +20,12 @@ fn help() {
 fn add_glob() {
 	// Linux has shell globbing built in, but that's not available for windows/cmd so "add *" is passed
 	// in without being expanded, resulting in an error instead of adding everything.
-	// https://github.com/rustworkshop/gitopolis/issues/122
+	// https://github.com/rustworkshop/vaquera/issues/122
 	let temp = temp_folder();
 	create_git_repo(&temp, "first_git_folder", "git://example.org/test_url");
 	create_git_repo(&temp, "second_git_folder", "git://example.org/test_url2");
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["add", "*"])
 		.assert()
@@ -48,7 +48,7 @@ tags = []
 name = \"origin\"
 url = \"git://example.org/test_url2\"
 ";
-	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
+	assert_eq!(expected_toml, read_vaquera_state_toml(&temp));
 }
 
 #[test]
@@ -56,7 +56,7 @@ fn add() {
 	let temp = temp_folder();
 	create_git_repo(&temp, "some_git_folder", "git://example.org/test_url");
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["add", "some_git_folder"])
 		.assert()
@@ -69,7 +69,7 @@ fn add() {
 		"git://example.org/test_url2",
 	);
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["add", "some_other_git_folder"])
 		.assert()
@@ -92,7 +92,7 @@ tags = []
 name = \"origin\"
 url = \"git://example.org/test_url2\"
 ";
-	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
+	assert_eq!(expected_toml, read_vaquera_state_toml(&temp));
 }
 
 #[test]
@@ -100,18 +100,18 @@ fn remove() {
 	let temp = temp_folder();
 	add_a_repo(&temp, "some_git_folder", "git://example.org/test_url");
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["remove", "some_git_folder"])
 		.assert()
 		.success();
 
-	assert_eq!("repos = []\n", read_gitopolis_state_toml(&temp));
+	assert_eq!("repos = []\n", read_vaquera_state_toml(&temp));
 }
 
 #[test]
 fn list_errors_when_no_config() {
-	gitopolis_executable()
+	vaquera_executable()
 		.arg("list")
 		.assert()
 		.failure()
@@ -134,7 +134,7 @@ fn list() {
 		"git://example.org/test_url2",
 	);
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["list"])
 		.assert()
@@ -157,7 +157,7 @@ fn list_tag() {
 		"git://example.org/test_url2",
 	);
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["list", "--tag", "some_tag"])
 		.assert()
@@ -180,7 +180,7 @@ fn list_tag_abbreviated() {
 		"git://example.org/test_url2",
 	);
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["list", "-t", "some_tag"])
 		.assert()
@@ -208,14 +208,14 @@ fn list_long() {
 some_other_git_folder\t\torigin=git://example.org/test_url2
 ";
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["list", "-l"])
 		.assert()
 		.success()
 		.stdout(expected_long_output);
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["list", "--long"])
 		.assert()
@@ -248,7 +248,7 @@ git://example.org/test_url2
 
 ";
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["exec", "--", "git", "config", "remote.origin.url"])
 		.assert()
@@ -268,13 +268,13 @@ tags = []
 name = \"origin\"
 url = \"example_url\"
 ";
-	write_gitopolis_state_toml(&temp, initial_state_toml);
+	write_vaquera_state_toml(&temp, initial_state_toml);
 
 	let expected_stdout = "
 🏢 missing_git_folder> Repo folder missing, skipped.
 ";
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["exec", "--", "never_called"])
 		.assert()
@@ -305,7 +305,7 @@ git://example.org/test_url
 
 ";
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec![
 			"exec",
@@ -342,7 +342,7 @@ git://example.org/test_url
 
 ";
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec![
 			"exec",
@@ -394,7 +394,7 @@ Command exited with code 2
 		}
 	};
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["exec", "--", "ls", "non-existent"])
 		.assert()
@@ -410,14 +410,14 @@ fn exec_invalid_command() {
 	add_a_repo(&temp, "some_git_folder", "git://example.org/test_url");
 
 	// With shell execution, invalid commands are handled by the shell
-	// Gitopolis should exit with failure when shell commands fail
+	// Vaquera should exit with failure when shell commands fail
 	let expected_error = if cfg!(windows) {
 		"not recognized as an internal or external command"
 	} else {
 		"not found"
 	};
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["exec", "--", "not-a-command"])
 		.assert()
@@ -436,7 +436,7 @@ fn exec_oneline() {
 	add_a_repo(&temp, "repo_a", "git://example.org/test_url");
 	add_a_repo(&temp, "repo_b", "git://example.org/test_url2");
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["exec", "--oneline", "--", "echo", "hello"])
 		.assert()
@@ -453,7 +453,7 @@ fn exec_oneline_multiline_output() {
 	let repo_path = temp.path().join("repo_a");
 	fs::write(repo_path.join("test.txt"), "line1\nline2\nline3").unwrap();
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["exec", "--oneline", "--", "cat", "test.txt"])
 		.assert()
@@ -476,7 +476,7 @@ fn exec_oneline_non_zero() {
 		}
 	};
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["exec", "--oneline", "--", "ls", "non-existent"])
 		.assert()
@@ -507,9 +507,9 @@ tags = []
 name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
-	write_gitopolis_state_toml(&temp, initial_state_toml);
+	write_vaquera_state_toml(&temp, initial_state_toml);
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["exec", "--oneline", "--", "echo", "hello"])
 		.assert()
@@ -524,7 +524,7 @@ fn tag() {
 	let temp = temp_folder();
 	add_a_repo(&temp, "some_git_folder", "git://example.org/test_url");
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["tag", "some_tag", "some_git_folder"])
 		.assert()
@@ -538,7 +538,7 @@ tags = [\"some_tag\"]
 name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
-	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
+	assert_eq!(expected_toml, read_vaquera_state_toml(&temp));
 }
 
 #[test]
@@ -551,13 +551,13 @@ fn tag_remove() {
 		vec!["some_tag"],
 	);
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["tag", "--remove", "some_tag", "some_git_folder"])
 		.assert()
 		.success();
 
-	let actual_toml = read_gitopolis_state_toml(&temp);
+	let actual_toml = read_vaquera_state_toml(&temp);
 	let expected_toml = "[[repos]]
 path = \"some_git_folder\"
 tags = []
@@ -579,13 +579,13 @@ fn tag_remove_abbreviated() {
 		vec!["some_tag"],
 	);
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["tag", "-r", "some_tag", "some_git_folder"])
 		.assert()
 		.success();
 
-	let actual_toml = read_gitopolis_state_toml(&temp);
+	let actual_toml = read_vaquera_state_toml(&temp);
 	let expected_toml = "[[repos]]
 path = \"some_git_folder\"
 tags = []
@@ -613,7 +613,7 @@ fn tags() {
 		vec!["some_tag", "another_tag"],
 	);
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["tags"])
 		.assert()
@@ -646,7 +646,7 @@ some_tag
 
 ";
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["tags", "--long"])
 		.assert()
@@ -679,7 +679,7 @@ some_tag
 
 ";
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["tags", "-l"])
 		.assert()
@@ -699,7 +699,7 @@ tags = []
 name = \"origin\"
 url = \"source_repo\"
 ";
-	write_gitopolis_state_toml(&temp, initial_state_toml);
+	write_vaquera_state_toml(&temp, initial_state_toml);
 
 	let expected_clone_stdout = "🏢 some_git_folder> Cloning source_repo ...
 
@@ -709,7 +709,7 @@ done.
 
 ";
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["clone"])
 		.assert()
@@ -742,7 +742,7 @@ nothing to commit (create/copy files and use \"git add\" to track)
 		}
 	};
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["exec", "--", "git", "status"])
 		.assert()
@@ -778,7 +778,7 @@ tags = []
 name = \"origin\"
 url = \"nonexistent_source_repo\"
 ";
-	write_gitopolis_state_toml(&temp, initial_state_toml);
+	write_vaquera_state_toml(&temp, initial_state_toml);
 
 	let expected_clone_stdout = "🏢 some_git_folder> Cloning source_repo ...
 
@@ -788,7 +788,7 @@ done.
 
 ";
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["clone", "--tag", "some_tag"])
 		.assert()
@@ -820,9 +820,9 @@ nothing to commit (create/copy files and use \"git add\" to track)
 "
 		}
 	};
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
-		.args(vec!["exec", "--tag", "some_tag", "--", "git", "status"]) // filter exec to tag otherwise it runs on repos that don't yet exists https://github.com/timabell/gitopolis/issues/29
+		.args(vec!["exec", "--tag", "some_tag", "--", "git", "status"]) // filter exec to tag otherwise it runs on repos that don't yet exists https://github.com/timabell/vaquera/issues/29
 		.assert()
 		.success()
 		.stdout(expected_exec_stdout);
@@ -833,7 +833,7 @@ fn create_local_repo(temp: &TempDir, repo_name: &str) {
 }
 
 fn tag_repo(temp: &TempDir, repo_name: &str, tag_name: &str) {
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(temp)
 		.args(vec!["tag", tag_name, repo_name])
 		.output()
@@ -851,7 +851,7 @@ fn add_a_repo_with_tags(temp: &TempDir, repo_name: &str, remote_url: &str, tags:
 fn add_a_repo(temp: &TempDir, repo_name: &str, remote_url: &str) {
 	create_git_repo(temp, repo_name, remote_url);
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(temp)
 		.args(vec!["add", repo_name])
 		.output()
@@ -875,16 +875,16 @@ fn create_git_repo(temp: &TempDir, repo_name: &str, remote_url: &str) {
 		.expect("git command failed");
 }
 
-fn gitopolis_executable() -> AssertCommand {
-	AssertCommand::cargo_bin("gitopolis").expect("failed to find binary")
+fn vaquera_executable() -> AssertCommand {
+	AssertCommand::cargo_bin("vaquera").expect("failed to find binary")
 }
 
-fn write_gitopolis_state_toml(temp: &TempDir, initial_state_toml: &str) {
-	fs::write(temp.path().join(".gitopolis.toml"), initial_state_toml)
+fn write_vaquera_state_toml(temp: &TempDir, initial_state_toml: &str) {
+	fs::write(temp.path().join(".vaquera.toml"), initial_state_toml)
 		.expect("failed to write initial state toml");
 }
-fn read_gitopolis_state_toml(temp: &TempDir) -> String {
-	fs::read_to_string(temp.path().join(".gitopolis.toml")).expect("failed to read back toml")
+fn read_vaquera_state_toml(temp: &TempDir) -> String {
+	fs::read_to_string(temp.path().join(".vaquera.toml")).expect("failed to read back toml")
 }
 fn temp_folder() -> TempDir {
 	tempdir().expect("get tmp dir failed")
@@ -912,7 +912,7 @@ fn exec_command_oneline_with_piping() {
 	add_a_repo(&temp, "repo_a", "git://example.org/test_a");
 	add_a_repo(&temp, "repo_b", "git://example.org/test_b");
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["exec", "--oneline", "--", "echo hello | sort"]) // Use echo piped to sort which works on both platforms
 		.assert()
@@ -928,7 +928,7 @@ fn exec_shell_piping() {
 	add_a_repo(&temp, "repo_a", "git://example.org/test_a");
 	add_a_repo(&temp, "repo_b", "git://example.org/test_b");
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["exec", "--", "echo test output | sort"])
 		.assert()
@@ -948,7 +948,7 @@ fn exec_shell_quoted_args() {
 	let temp = temp_folder();
 	add_a_repo(&temp, "repo_a", "git://example.org/test_a");
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["exec", "--", "echo 'hello world'"])
 		.assert()
@@ -992,8 +992,8 @@ fn add_multiple_remotes() {
 		.output()
 		.expect("git remote add upstream failed");
 
-	// Run gitopolis add
-	gitopolis_executable()
+	// Run vaquera add
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["add", "test_repo"])
 		.assert()
@@ -1013,7 +1013,7 @@ url = \"git://example.org/origin_url\"
 name = \"upstream\"
 url = \"git://example.org/upstream_url\"
 ";
-	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
+	assert_eq!(expected_toml, read_vaquera_state_toml(&temp));
 }
 
 #[test]
@@ -1052,8 +1052,8 @@ fn list_long_multiple_remotes() {
 		.output()
 		.expect("git remote add upstream failed");
 
-	// Run gitopolis add
-	gitopolis_executable()
+	// Run vaquera add
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["add", "test_repo"])
 		.output()
@@ -1062,7 +1062,7 @@ fn list_long_multiple_remotes() {
 	// Test list --long shows both remotes
 	let expected_output = "test_repo\t\torigin=git://example.org/origin_url,upstream=git://example.org/upstream_url\n";
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["list", "--long"])
 		.assert()
@@ -1098,10 +1098,10 @@ url = \"nonexistent_source\"
 name = \"upstream\"
 url = \"also_nonexistent\"
 ";
-	write_gitopolis_state_toml(&temp, initial_state_toml);
+	write_vaquera_state_toml(&temp, initial_state_toml);
 
 	// Run clone - should fail with exit code 1
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["clone"])
 		.assert()
@@ -1140,10 +1140,10 @@ url = \"source_origin\"
 name = \"upstream\"
 url = \"source_upstream\"
 ";
-	write_gitopolis_state_toml(&temp, initial_state_toml);
+	write_vaquera_state_toml(&temp, initial_state_toml);
 
 	// Run clone
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["clone"])
 		.assert()
@@ -1212,17 +1212,17 @@ fn sync_read_remotes() {
 		.output()
 		.expect("git remote add upstream failed");
 
-	// Create initial gitopolis state with just the repo path (no remotes)
+	// Create initial vaquera state with just the repo path (no remotes)
 	let initial_state_toml = "[[repos]]
 path = \"test_repo\"
 tags = []
 
 [repos.remotes]
 ";
-	write_gitopolis_state_toml(&temp, initial_state_toml);
+	write_vaquera_state_toml(&temp, initial_state_toml);
 
 	// Run sync --read-remotes
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["sync", "--read-remotes"])
 		.assert()
@@ -1244,7 +1244,7 @@ url = \"git://example.org/origin_url\"
 name = \"upstream\"
 url = \"git://example.org/upstream_url\"
 ";
-	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
+	assert_eq!(expected_toml, read_vaquera_state_toml(&temp));
 }
 
 #[test]
@@ -1271,7 +1271,7 @@ fn sync_write_remotes() {
 		.output()
 		.expect("git remote add origin failed");
 
-	// Create gitopolis state with additional remotes
+	// Create vaquera state with additional remotes
 	let initial_state_toml = "[[repos]]
 path = \"test_repo\"
 tags = []
@@ -1288,10 +1288,10 @@ url = \"git://example.org/upstream_url\"
 name = \"fork\"
 url = \"git://example.org/fork_url\"
 ";
-	write_gitopolis_state_toml(&temp, initial_state_toml);
+	write_vaquera_state_toml(&temp, initial_state_toml);
 
 	// Run sync --write-remotes
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["sync", "--write-remotes"])
 		.assert()
@@ -1382,10 +1382,10 @@ tags = []
 
 [repos.remotes]
 ";
-	write_gitopolis_state_toml(&temp, initial_state_toml);
+	write_vaquera_state_toml(&temp, initial_state_toml);
 
 	// Run sync --read-remotes with tag
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["sync", "--read-remotes", "--tag", "sync-tag"])
 		.assert()
@@ -1396,7 +1396,7 @@ tags = []
 		.stderr(predicate::str::contains("untagged_repo").not());
 
 	// Verify only tagged repo was updated
-	let toml = read_gitopolis_state_toml(&temp);
+	let toml = read_vaquera_state_toml(&temp);
 	assert!(toml.contains("git://example.org/tagged_url"));
 	assert!(!toml.contains("git://example.org/untagged_url"));
 }
@@ -1444,10 +1444,10 @@ tags = []
 name = \"origin\"
 url = \"git://example.org/untagged_origin\"
 ";
-	write_gitopolis_state_toml(&temp, initial_state_toml);
+	write_vaquera_state_toml(&temp, initial_state_toml);
 
 	// Run sync --write-remotes with tag
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["sync", "--write-remotes", "--tag", "sync-tag"])
 		.assert()
@@ -1490,10 +1490,10 @@ tags = []
 
 [repos.remotes]
 ";
-	write_gitopolis_state_toml(&temp, initial_state_toml);
+	write_vaquera_state_toml(&temp, initial_state_toml);
 
 	// Run sync --read-remotes
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["sync", "--read-remotes"])
 		.assert()
@@ -1518,10 +1518,10 @@ tags = []
 name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
-	write_gitopolis_state_toml(&temp, initial_state_toml);
+	write_vaquera_state_toml(&temp, initial_state_toml);
 
 	// Run sync --write-remotes
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["sync", "--write-remotes"])
 		.assert()
@@ -1569,20 +1569,20 @@ fn show() {
 		.output()
 		.expect("git remote add upstream failed");
 
-	// Add repo to gitopolis and tag it
-	gitopolis_executable()
+	// Add repo to vaquera and tag it
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["add", "test_repo"])
 		.output()
 		.expect("Failed to add repo");
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["tag", "backend", "test_repo"])
 		.output()
 		.expect("Failed to tag repo");
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["tag", "rust", "test_repo"])
 		.output()
@@ -1598,7 +1598,7 @@ Remotes:
   upstream: git://example.org/upstream_url
 ";
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["show", "test_repo"])
 		.assert()
@@ -1611,7 +1611,7 @@ fn show_repo_not_found() {
 	let temp = temp_folder();
 
 	// Try to show a repo that doesn't exist
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["show", "nonexistent_repo"])
 		.assert()
@@ -1628,7 +1628,7 @@ fn tag_repo_not_found() {
 	add_a_repo(&temp, "existing_repo", "git://example.org/test_url");
 
 	// Try to tag a repo that doesn't exist
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["tag", "some_tag", "nonexistent_repo"])
 		.assert()
@@ -1645,7 +1645,7 @@ fn tag_remove_repo_not_found() {
 	add_a_repo(&temp, "existing_repo", "git://example.org/test_url");
 
 	// Try to remove tag from a repo that doesn't exist
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["tag", "--remove", "some_tag", "nonexistent_repo"])
 		.assert()
@@ -1659,11 +1659,11 @@ fn tag_remove_repo_not_found() {
 #[test]
 fn exec_displays_quoted_args() {
 	// Test that exec command display adds quotes for arguments with spaces
-	// Issue: https://github.com/rustworkshop/gitopolis/issues/86
+	// Issue: https://github.com/rustworkshop/vaquera/issues/86
 	let temp = temp_folder();
 	add_a_repo(&temp, "repo_a", "git://example.org/test_a");
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["exec", "--", "echo", "oh no"])
 		.assert()
@@ -1673,8 +1673,8 @@ fn exec_displays_quoted_args() {
 
 #[test]
 fn clone_with_url() {
-	// Test cloning a repository from a URL and automatically adding it to gitopolis
-	// Issue: https://github.com/rustworkshop/gitopolis/issues/193
+	// Test cloning a repository from a URL and automatically adding it to vaquera
+	// Issue: https://github.com/rustworkshop/vaquera/issues/193
 	let temp = temp_folder();
 
 	// Create a source repo in a subdirectory
@@ -1690,7 +1690,7 @@ fn clone_with_url() {
 		.to_string();
 
 	// Run clone with URL - clone into temp directory
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["clone", &source_path])
 		.assert()
@@ -1698,12 +1698,12 @@ fn clone_with_url() {
 		.stdout(predicate::str::contains("🏢 myrepo> Cloning"))
 		.stdout(predicate::str::contains("Cloning into 'myrepo'"));
 
-	// Verify repo was added to .gitopolis.toml
-	let toml = read_gitopolis_state_toml(&temp);
+	// Verify repo was added to .vaquera.toml
+	let toml = read_vaquera_state_toml(&temp);
 	assert!(toml.contains("path = \"myrepo\""));
 
 	// Verify repo is listed
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["list"])
 		.assert()
@@ -1714,7 +1714,7 @@ fn clone_with_url() {
 #[test]
 fn clone_with_url_extracts_folder_name() {
 	// Test that clone extracts the correct folder name from various URL formats
-	// Issue: https://github.com/rustworkshop/gitopolis/issues/193
+	// Issue: https://github.com/rustworkshop/vaquera/issues/193
 	let temp = temp_folder();
 
 	// Create a source repo with .git in the name to test extraction
@@ -1731,14 +1731,14 @@ fn clone_with_url_extracts_folder_name() {
 		.to_string();
 
 	// Clone - should extract "myrepo" without the .git extension
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["clone", &source_path])
 		.assert()
 		.success();
 
 	// Verify folder name is without .git
-	let toml = read_gitopolis_state_toml(&temp);
+	let toml = read_vaquera_state_toml(&temp);
 	assert!(toml.contains("path = \"myrepo\""));
 
 	// Verify the cloned repo exists
@@ -1748,7 +1748,7 @@ fn clone_with_url_extracts_folder_name() {
 #[test]
 fn clone_with_url_and_target_dir() {
 	// Test cloning with a custom target directory, like git clone does
-	// Issue: https://github.com/rustworkshop/gitopolis/issues/193
+	// Issue: https://github.com/rustworkshop/vaquera/issues/193
 	let temp = temp_folder();
 
 	// Create a source repo in a subdirectory
@@ -1764,7 +1764,7 @@ fn clone_with_url_and_target_dir() {
 		.to_string();
 
 	// Clone with custom target directory
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["clone", &source_path, "my_custom_name"])
 		.assert()
@@ -1772,14 +1772,14 @@ fn clone_with_url_and_target_dir() {
 		.stdout(predicate::str::contains("🏢 my_custom_name> Cloning"));
 
 	// Verify repo was added with the custom name
-	let toml = read_gitopolis_state_toml(&temp);
+	let toml = read_vaquera_state_toml(&temp);
 	assert!(toml.contains("path = \"my_custom_name\""));
 
 	// Verify the cloned repo exists with the custom name
 	assert!(temp.path().join("my_custom_name").exists());
 
 	// Verify repo is listed with custom name
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["list"])
 		.assert()
@@ -1790,12 +1790,12 @@ fn clone_with_url_and_target_dir() {
 #[test]
 fn move_repo() {
 	// Test basic move operation
-	// Issue: https://github.com/rustworkshop/gitopolis/issues/157
+	// Issue: https://github.com/rustworkshop/vaquera/issues/157
 	let temp = temp_folder();
 	add_a_repo(&temp, "old_location", "git://example.org/test_url");
 
 	// Move the repo
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["move", "repo", "old_location", "new_location"])
 		.assert()
@@ -1819,10 +1819,10 @@ tags = []
 name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
-	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
+	assert_eq!(expected_toml, read_vaquera_state_toml(&temp));
 
 	// Verify repo is listed with new name
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["list"])
 		.assert()
@@ -1833,12 +1833,12 @@ url = \"git://example.org/test_url\"
 #[test]
 fn move_repo_with_nested_path() {
 	// Test move operation with nested source and target paths, creating parent directories
-	// Issue: https://github.com/rustworkshop/gitopolis/issues/157
+	// Issue: https://github.com/rustworkshop/vaquera/issues/157
 	let temp = temp_folder();
 	add_a_repo(&temp, "services/backend", "git://example.org/test_url");
 
 	// Move to nested path (parent directories don't exist yet)
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["move", "repo", "services/backend", "apps/auth"])
 		.assert()
@@ -1865,13 +1865,13 @@ tags = []
 name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
-	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
+	assert_eq!(expected_toml, read_vaquera_state_toml(&temp));
 }
 
 #[test]
 fn move_repo_preserves_tags() {
 	// Test that move preserves tags
-	// Issue: https://github.com/rustworkshop/gitopolis/issues/157
+	// Issue: https://github.com/rustworkshop/vaquera/issues/157
 	let temp = temp_folder();
 	add_a_repo_with_tags(
 		&temp,
@@ -1881,7 +1881,7 @@ fn move_repo_preserves_tags() {
 	);
 
 	// Move the repo
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["move", "repo", "tagged_repo", "new_tagged_repo"])
 		.assert()
@@ -1896,17 +1896,17 @@ tags = [\"backend\", \"rust\"]
 name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
-	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
+	assert_eq!(expected_toml, read_vaquera_state_toml(&temp));
 }
 
 #[test]
 fn move_repo_not_found() {
 	// Test that move fails when repo doesn't exist
-	// Issue: https://github.com/rustworkshop/gitopolis/issues/157
+	// Issue: https://github.com/rustworkshop/vaquera/issues/157
 	let temp = temp_folder();
 	add_a_repo(&temp, "existing_repo", "git://example.org/test_url");
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["move", "repo", "nonexistent_repo", "new_location"])
 		.assert()
@@ -1942,7 +1942,7 @@ test " ' | & ; < > ( ) $ ` \ * ? [ ] { } ! # chars
 		.to_string()
 	};
 
-	let result = gitopolis_executable()
+	let result = vaquera_executable()
 		.current_dir(&temp)
 		.args(vec![
 			"exec",
@@ -1974,7 +1974,7 @@ fn exec_single_arg_with_quotes_and_pipes() {
 	let temp = temp_folder();
 	add_a_repo(&temp, "repo_a", "git://example.org/test_a");
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["exec", "--", r#"echo "foo | bar" | grep bar"#])
 		.assert()
@@ -1987,7 +1987,7 @@ fn exec_single_arg_literal_pipe_characters() {
 	let temp = temp_folder();
 	add_a_repo(&temp, "repo_a", "git://example.org/test_a");
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["exec", "--", r#"echo "this | is | not | a | pipe""#])
 		.assert()
@@ -2008,7 +2008,7 @@ fn exec_multiple_args_with_single_quotes() {
 		"argument with 'quotes'"
 	};
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["exec", "--", "echo", "argument with 'quotes'"])
 		.assert()
@@ -2034,7 +2034,7 @@ repo_b	test " ' | & ; < > ( ) $ ` \ * ? [ ] { } ! # chars
 "#
 	};
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec![
 			"exec",
@@ -2054,7 +2054,7 @@ fn exec_oneline_single_arg_with_pipes() {
 	add_a_repo(&temp, "repo_a", "git://example.org/test_a");
 	add_a_repo(&temp, "repo_b", "git://example.org/test_b");
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec![
 			"exec",
@@ -2082,7 +2082,7 @@ fn exec_oneline_multiple_args_with_single_quotes() {
 		"repo_a\targument with 'quotes'\n"
 	};
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec![
 			"exec",
@@ -2131,7 +2131,7 @@ tags = []
 name = \"origin\"
 url = \"git://example.org/zulu\"
 ";
-	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
+	assert_eq!(expected_toml, read_vaquera_state_toml(&temp));
 }
 
 #[test]
@@ -2154,7 +2154,7 @@ tags = [\"alpha\", \"Beta\", \"zulu\"]
 name = \"origin\"
 url = \"git://example.org/test\"
 ";
-	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
+	assert_eq!(expected_toml, read_vaquera_state_toml(&temp));
 }
 
 #[test]
@@ -2162,7 +2162,7 @@ fn tag_multiple_comma_separated() {
 	let temp = temp_folder();
 	add_a_repo(&temp, "some_git_folder", "git://example.org/test_url");
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["tag", "tag1,tag2,tag3", "some_git_folder"])
 		.assert()
@@ -2176,7 +2176,7 @@ tags = [\"tag1\", \"tag2\", \"tag3\"]
 name = \"origin\"
 url = \"git://example.org/test_url\"
 ";
-	assert_eq!(expected_toml, read_gitopolis_state_toml(&temp));
+	assert_eq!(expected_toml, read_vaquera_state_toml(&temp));
 }
 
 #[test]
@@ -2189,13 +2189,13 @@ fn tag_remove_multiple_comma_separated() {
 		vec!["tag1", "tag2", "tag3", "keep_this"],
 	);
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["tag", "--remove", "tag1,tag2,tag3", "some_git_folder"])
 		.assert()
 		.success();
 
-	let actual_toml = read_gitopolis_state_toml(&temp);
+	let actual_toml = read_vaquera_state_toml(&temp);
 	let expected_toml = "[[repos]]
 path = \"some_git_folder\"
 tags = [\"keep_this\"]
@@ -2232,7 +2232,7 @@ fn list_with_multiple_tag_groups() {
 		vec!["foo", "bar", "baz", "boz"],
 	);
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["list", "--tag", "foo,bar", "--tag", "baz,boz"])
 		.assert()
@@ -2269,7 +2269,7 @@ hello
 
 "#;
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec![
 			"exec", "--tag", "foo,bar", "--tag", "baz,boz", "--", "echo", "hello",
@@ -2311,9 +2311,9 @@ tags = [\"foo\"]
 name = \"origin\"
 url = \"source3\"
 ";
-	write_gitopolis_state_toml(&temp, initial_state_toml);
+	write_vaquera_state_toml(&temp, initial_state_toml);
 
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec!["clone", "--tag", "foo,bar", "--tag", "baz,boz"])
 		.assert()
@@ -2409,10 +2409,10 @@ tags = [\"foo\"]
 
 [repos.remotes]
 ";
-	write_gitopolis_state_toml(&temp, initial_state_toml);
+	write_vaquera_state_toml(&temp, initial_state_toml);
 
 	// Run sync --read-remotes with multiple tag groups
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec![
 			"sync",
@@ -2433,7 +2433,7 @@ tags = [\"foo\"]
 		.stderr(predicate::str::contains("repo3").not());
 
 	// Verify only repo1 and repo2 were updated
-	let toml = read_gitopolis_state_toml(&temp);
+	let toml = read_vaquera_state_toml(&temp);
 	assert!(toml.contains("git://example.org/repo1_url"));
 	assert!(toml.contains("git://example.org/repo2_url"));
 	assert!(!toml.contains("git://example.org/repo3_url"));
@@ -2504,10 +2504,10 @@ tags = [\"foo\"]
 name = \"origin\"
 url = \"git://example.org/repo3_origin\"
 ";
-	write_gitopolis_state_toml(&temp, initial_state_toml);
+	write_vaquera_state_toml(&temp, initial_state_toml);
 
 	// Run sync --write-remotes with multiple tag groups
-	gitopolis_executable()
+	vaquera_executable()
 		.current_dir(&temp)
 		.args(vec![
 			"sync",

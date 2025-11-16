@@ -54,16 +54,16 @@ jobs:
         include:
         - os: ubuntu-latest
           target: x86_64-unknown-linux-musl
-          artifact_name: gitopolis-linux-x86_64
-          binary_name: gitopolis
+          artifact_name: vaquera-linux-x86_64
+          binary_name: vaquera
         - os: windows-latest
           target: x86_64-pc-windows-msvc
-          artifact_name: gitopolis-windows-x86_64
-          binary_name: gitopolis.exe
+          artifact_name: vaquera-windows-x86_64
+          binary_name: vaquera.exe
         - os: macos-latest
           target: x86_64-apple-darwin
-          artifact_name: gitopolis-macos-x86_64
-          binary_name: gitopolis
+          artifact_name: vaquera-macos-x86_64
+          binary_name: vaquera
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v5
@@ -96,7 +96,7 @@ jobs:
     - name: Debug - Test shell commands availability
       shell: bash
       run: |
-        echo "=== Testing shell commands used in gitopolis tests ==="
+        echo "=== Testing shell commands used in vaquera tests ==="
         echo "hello" | sort
     - name: Install musl tools
       if: matrix.target == 'x86_64-unknown-linux-musl'

@@ -34,30 +34,30 @@ jobs:
     - name: Download Linux Build
       uses: actions/download-artifact@v6
       with:
-        name: gitopolis-linux-x86_64
+        name: vaquera-linux-x86_64
 
     - name: Download Windows Build
       uses: actions/download-artifact@v6
       with:
-        name: gitopolis-windows-x86_64
+        name: vaquera-windows-x86_64
 
     - name: Download macOS Build
       uses: actions/download-artifact@v6
       with:
-        name: gitopolis-macos-x86_64
+        name: vaquera-macos-x86_64
 
     - name: Generate SHA256 Checksums
       run: |
-        sha256sum gitopolis-linux-x86_64.tar.gz gitopolis-windows-x86_64.zip gitopolis-macos-x86_64.tar.gz > SHA256SUMS.txt
+        sha256sum vaquera-linux-x86_64.tar.gz vaquera-windows-x86_64.zip vaquera-macos-x86_64.tar.gz > SHA256SUMS.txt
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
         body: ${{ steps.changelog.outputs.content }}
         files: |
-          gitopolis-linux-x86_64.tar.gz
-          gitopolis-windows-x86_64.zip
-          gitopolis-macos-x86_64.tar.gz
+          vaquera-linux-x86_64.tar.gz
+          vaquera-windows-x86_64.zip
+          vaquera-macos-x86_64.tar.gz
           SHA256SUMS.txt
 
     - name: Update Version for crates.io

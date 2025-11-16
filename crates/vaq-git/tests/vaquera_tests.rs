@@ -1,7 +1,7 @@
-use gitopolis::git::Git;
-use gitopolis::gitopolis::{Gitopolis, GopError};
-use gitopolis::storage::Storage;
-use gitopolis::tag_filter::TagFilter;
+use vaquera::git::Git;
+use vaquera::vaquera::{Vaquera, VaqError};
+use vaquera::storage::Storage;
+use vaquera::tag_filter::TagFilter;
 
 #[test]
 fn add() {
@@ -17,9 +17,9 @@ url = \"git://example.org/test_url\"
 		.with_file_saved_callback(|state| assert_eq!(expected_toml.to_owned(), state))
 		.boxed();
 	let git = FakeGit::new().boxed();
-	let mut gitopolis = Gitopolis::new(storage, git);
+	let mut vaquera = Vaquera::new(storage, git);
 
-	gitopolis.add("test_repo/".to_string()).expect("Failed");
+	vaquera.add("test_repo/".to_string()).expect("Failed");
 }
 
 #[test]
@@ -38,9 +38,9 @@ url = \"git://example.org/test_url\"\
 		.boxed();
 
 	let git = FakeGit::new().boxed();
-	let gitopolis = Gitopolis::new(storage, git);
+	let vaquera = Vaquera::new(storage, git);
 	let filter = TagFilter::all();
-	let actual_repos = gitopolis.list(&filter).expect("Failed to list repos");
+	let actual_repos = vaquera.list(&filter).expect("Failed to list repos");
 
 	let expected_repos = 1;
 	assert_eq!(expected_repos, actual_repos.len())
@@ -62,9 +62,9 @@ url = \"git://example.org/test_url\"\
 		.boxed();
 
 	let git = FakeGit::new().boxed();
-	let gitopolis = Gitopolis::new(storage, git);
+	let vaquera = Vaquera::new(storage, git);
 	let filter = TagFilter::all();
-	let repos_result = gitopolis.list(&filter);
+	let repos_result = vaquera.list(&filter);
 	let actual_error = repos_result.expect_err("should error");
 	let expected_error = "Failed to parse state data as valid TOML. TOML parse error at line 1, column 1\n  |\n1 | [[NOT_A_repos]]\n  | ^^^^^^^^^^^^^^^\nmissing field `remotes`\n";
 	assert_eq!(expected_error, actual_error.message())
@@ -94,11 +94,11 @@ url = \"git://example.org/test_url\"\
 		}))
 		.boxed();
 
-	let gitopolis = Gitopolis::new(storage, git);
+	let vaquera = Vaquera::new(storage, git);
 
 	let filter = TagFilter::all();
-	gitopolis.clone(
-		gitopolis
+	vaquera.clone(
+		vaquera
 			.list(&filter)
 			.expect("Failed to list repos for cloning"),
 	);
@@ -130,9 +130,9 @@ url = \"git://example.org/test_url\"
 		.boxed();
 
 	let git = FakeGit::new().boxed();
-	let mut gitopolis = Gitopolis::new(storage, git);
+	let mut vaquera = Vaquera::new(storage, git);
 
-	gitopolis
+	vaquera
 		.add_tag("some_tag", &["test_repo/".to_string()])
 		.expect("Failed to add tag to repo");
 }
@@ -163,9 +163,9 @@ url = \"git://example.org/test_url\"
 		.boxed();
 
 	let git = FakeGit::new().boxed();
-	let mut gitopolis = Gitopolis::new(storage, git);
+	let mut vaquera = Vaquera::new(storage, git);
 
-	gitopolis
+	vaquera
 		.remove_tag("some_tag", &["test_repo/".to_string()])
 		.expect("Failed to remove tag from repo");
 }
@@ -193,9 +193,9 @@ url = \"git://example.org/test_url\"\
 		.boxed();
 
 	let git = FakeGit::new().boxed();
-	let gitopolis = Gitopolis::new(storage, git);
+	let vaquera = Vaquera::new(storage, git);
 
-	let result = gitopolis.tags().expect("Failed to get tags");
+	let result = vaquera.tags().expect("Failed to get tags");
 	assert_eq!(3, result.len());
 	assert_eq!("another_tag", result[0]);
 	assert_eq!("more_tags", result[1]);
@@ -234,10 +234,10 @@ url = \"git://example.org/alpha\"\
 		.boxed();
 
 	let git = FakeGit::new().boxed();
-	let gitopolis = Gitopolis::new(storage, git);
+	let vaquera = Vaquera::new(storage, git);
 
 	let filter = TagFilter::all();
-	let repos = gitopolis.list(&filter).expect("Failed to list repos");
+	let repos = vaquera.list(&filter).expect("Failed to list repos");
 
 	// Verify case-insensitive sorting: alpha < Beta < zebra
 	assert_eq!(3, repos.len());
@@ -286,10 +286,10 @@ url = \"git://example.org/alpha\"\
 		.boxed();
 
 	let git = FakeGit::new().boxed();
-	let gitopolis = Gitopolis::new(storage, git);
+	let vaquera = Vaquera::new(storage, git);
 
 	let filter = TagFilter::from_cli_args(&["backend".to_string()]);
-	let repos = gitopolis.list(&filter).expect("Failed to list repos");
+	let repos = vaquera.list(&filter).expect("Failed to list repos");
 
 	// Verify case-insensitive sorting: alpha < Beta < zebra
 	assert_eq!(3, repos.len());
@@ -330,14 +330,14 @@ url = \"git://example.org/alpha\"\
 		.boxed();
 
 	let git = FakeGit::new().boxed();
-	let gitopolis = Gitopolis::new(storage, git);
+	let vaquera = Vaquera::new(storage, git);
 
-	let tags = gitopolis.tags().expect("Failed to get tags");
+	let tags = vaquera.tags().expect("Failed to get tags");
 	assert_eq!(1, tags.len());
 	assert_eq!("backend", tags[0]);
 
 	let filter = TagFilter::from_cli_args(&["backend".to_string()]);
-	let repos = gitopolis.list(&filter).expect("Failed to list repos");
+	let repos = vaquera.list(&filter).expect("Failed to list repos");
 	// Verify case-insensitive sorting: alpha < Beta < zebra
 	assert_eq!(3, repos.len());
 	assert_eq!("alpha_repo", repos[0].path);
@@ -364,9 +364,9 @@ url = \"git://example.org/test_url\"\
 		.boxed();
 
 	let git = FakeGit::new().boxed();
-	let mut gitopolis = Gitopolis::new(storage, git);
+	let mut vaquera = Vaquera::new(storage, git);
 
-	gitopolis
+	vaquera
 		.remove_repos_by_name(&["test_repo/".to_string()])
 		.expect("Failed to remove repo");
 }
@@ -375,9 +375,9 @@ url = \"git://example.org/test_url\"\
 fn remove_unknown() {
 	let storage = FakeStorage::new().boxed();
 	let git = FakeGit::new().boxed();
-	let mut gitopolis = Gitopolis::new(storage, git);
+	let mut vaquera = Vaquera::new(storage, git);
 
-	gitopolis
+	vaquera
 		.remove_repos_by_name(&["non-existent-repo".to_string()])
 		.expect("Failed");
 }
@@ -403,9 +403,9 @@ url = \"git://example.org/upstream_url\"\
 
 	let git = FakeGit::new().boxed();
 
-	let gitopolis = Gitopolis::new(storage, git);
+	let vaquera = Vaquera::new(storage, git);
 
-	let result = gitopolis.show("test_repo").expect("Show failed");
+	let result = vaquera.show("test_repo").expect("Show failed");
 
 	assert_eq!("test_repo", result.path);
 	assert_eq!(2, result.tags.len());
@@ -494,14 +494,14 @@ impl FakeGit {
 }
 
 impl Git for FakeGit {
-	fn read_remote_url(&self, _path: String, _remote_name: String) -> Result<String, GopError> {
+	fn read_remote_url(&self, _path: String, _remote_name: String) -> Result<String, VaqError> {
 		Ok("git://example.org/test_url".to_string())
 	}
 
 	fn read_all_remotes(
 		&self,
 		_path: String,
-	) -> Result<std::collections::BTreeMap<String, String>, GopError> {
+	) -> Result<std::collections::BTreeMap<String, String>, VaqError> {
 		let mut remotes = std::collections::BTreeMap::new();
 		remotes.insert(
 			"origin".to_string(),
@@ -514,7 +514,7 @@ impl Git for FakeGit {
 		// No-op for fake implementation
 	}
 
-	fn clone(&self, path: &str, url: &str) -> Result<(), GopError> {
+	fn clone(&self, path: &str, url: &str) -> Result<(), VaqError> {
 		(self.clone_callback)(path.to_owned(), url.to_owned());
 		Ok(())
 	}

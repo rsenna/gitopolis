@@ -1,134 +1,60 @@
 use crate::git::Git;
-use crate::repos::{GopRepo, GopRepoBuilder, GopRepoBuilderError, GopRepos};
+use crate::vaq_types::{VaqTags, VaqUrl};
+use crate::repos::{VaqRepo, VaqRepoBuilderError, VaqRepos};
 use crate::storage::Storage;
 use crate::tag_filter::TagFilter;
 
-use log::info;
 use std::collections::BTreeMap;
 use std::convert::Infallible;
 use std::io;
 use std::path::{Path, PathBuf};
-use crate::gop_types::{GopTags, GopUrl};
 
-pub struct Gitopolis {
+use derive_more::Display;
+use log::info;
+use thiserror::Error;
+
+// TODO: merge with git.rs?
+// also: see if there is anything common to all workspaces here; that should be in the main crate, or in a crate not
+// yet created
+
+pub struct Vaquera {
 	storage: Box<dyn Storage>,
 	git: Box<dyn Git>,
 }
 
-#[derive(Debug)]
-pub enum GopError {
-	Git { message: String },
-	State { message: String },
-	Remote { message: String, remote: String },
-	Io { inner: io::Error },
-}
+#[derive(Debug, Error)]
+#[non_exhaustive]
+enum VaqMainError {
+	#[error("Cannot open git repository `{repo_name}`")]
+	GitError { repo_name: String },
 
-pub trait SomeError {
-	fn message(&self) -> String;
-}
+	#[error("Invalid git URL `{url}`")]
+	InvalidGitUrl { url: String },
 
-impl SomeError for GopError {
-	fn message(&self) -> String {
-		match self {
-			GopError::Git { message } => message.to_string(),
-			GopError::State { message } => message.to_string(),
-			GopError::Remote { message, remote: _ } => message.to_string(),
-			GopError::Io { inner } => inner.to_string(),
-		}
-	}
-}
+	#[error("Invalid URL `{url}`")]
+	InvalidUrl { url: String },
 
-impl SomeError for git2::Error {
-	fn message(&self) -> String { format!("{}", self) }
-}
+	#[error("Non-initialized field `{field_name}`")]
+	NonInitializedField { field_name: String },
 
-impl SomeError for gix_url::parse::Error {
-	fn message(&self) -> String { format!("{}", self) }
-}
+	#[error("Validation error")]
+	Validation { field_name: String },
 
-impl SomeError for Infallible {
-	fn message(&self) -> String { format!("{}", self) }
-}
+	#[error("Cannot access remote {remote_name} ({remote_url})")]
+	RemoteOpen { remote_name: String, remote_url: String },
 
-impl SomeError for GopRepoBuilderError {
-	fn message(&self) -> String {
-		match self {
-			GopRepoBuilderError::UninitializedField(msg) => {
-				format!("Uninitialized field: {}", msg)
-			}
-			GopRepoBuilderError::ValidationError(message) => {
-				format!("Validation error: {}", message)
-			}
-		}
-	}
-}
-
-// TODO: find some way of avoid code duplication for GopError helper methods
-impl GopError {
-	pub fn git<S: AsRef<str>>(message: S) -> Self {
-		GopError::Git {
-			message: format!("{}", message.as_ref())
-		}
-	}
-
-	pub fn git_cannot_open<S: AsRef<str>>(message: S) -> Self {
-		Self::git(format!("Couldn't open git repo: {}", message.as_ref()))
-	}
-
-	pub fn git_error<E: SomeError>(error: E) -> Self {
-		Self::git(error.message())
-	}
-
-	pub fn remote<S: AsRef<str>, R: AsRef<str>>(message: S, remote_name: R) -> Self {
-		GopError::Remote {
-			message: format!("Error with remote '{}': {}", remote_name.as_ref(), message.as_ref()),
-			remote: remote_name.as_ref().to_string(),
-		}
-	}
-
-	pub fn remote_not_found<R: AsRef<str>>(remote_name: R) -> Self {
-		GopError::remote("Not found.", remote_name)
-	}
-
-	pub fn remote_error<E: SomeError, S: AsRef<str>>(error: E, remote_name: S) -> Self {
-		Self::remote(error.message(), remote_name)
-	}
-
-	pub fn state<S: AsRef<str>>(message: S) -> Self {
-		Self::State {
-			message: format!("{}", message.as_ref().to_string())
-		}
-	}
-
-	pub fn state_error<E: SomeError>(error: E) -> Self {
-		Self::state(error.message())
-	}
-
-	pub fn state_error_invalid_url<E: SomeError, S: AsRef<GopUrl>>(error: E, url: S) -> Self {
-		Self::state(format!("Invalid Git URL {}: {}.", url.as_ref(), error.message()))
-	}
-
-	pub fn state_invalid_url<S: AsRef<GopUrl>>(url: S) -> Self {
-		Self::state(format!("Invalid Git URL {}.", url.as_ref()))
-	}
-
-	pub fn state_repo_not_found<S: AsRef<str>>(repo_id: S) -> Self {
-		Self::state(format!("Repo '{}' not found.", repo_id.as_ref()))
-	}
-
-	pub fn state_error_repo_not_found<E: SomeError, S: AsRef<str>>(error: E, repo_id: S) -> Self {
-		Self::state(format!("Repo '{}' not found: {}.", repo_id.as_ref(), error.message()))
-	}
+	#[error("IO error")]
+	Io,
 }
 
 const ORIGIN: &'static str = "origin";
 
-impl Gitopolis {
+impl Vaquera {
 	pub fn new(storage: Box<dyn Storage>, git: Box<dyn Git>) -> Self {
 		Self { storage, git }
 	}
 
-	pub fn add(&mut self, repo_path: &Path) -> Result<(), GopError> {
+	pub fn add(&mut self, repo_path: &Path) -> Result<(), VaqMainError> {
 		let mut repos = self.load()?;
 		let normalized_path = normalize_path(repo_path);
 
@@ -140,13 +66,13 @@ impl Gitopolis {
 		let remotes = self.git.read_all_remotes(normalized_path.as_path())?;
 
 		repos.add_new_repo(normalized_path.as_path(), remotes)
-			.map_err(GopError::state_error)?;
+			.map_err(VaqMainError::state_error)?;
 
 		self.save(repos)?;
 		Ok(())
 	}
 
-	pub fn remove_repos_by_name(&mut self, repo_names: &[String]) -> Result<(), GopError> {
+	pub fn remove_repos_by_name(&mut self, repo_names: &[String]) -> Result<(), VaqMainError> {
 		let mut repos = self.load()?;
 		repos.remove_by_names(repo_names.to_vec());
 		self.save(repos)
@@ -156,7 +82,7 @@ impl Gitopolis {
 		&mut self,
 		tag_name: &str,
 		repo_names: &[String],
-	) -> Result<(), GopError> {
+	) -> Result<(), VaqMainError> {
 		let mut repos = self.load()?;
 		repos.add_tag(tag_name, repo_names.to_vec())?;
 		self.save(repos)
@@ -166,17 +92,17 @@ impl Gitopolis {
 		&mut self,
 		tag_name: &str,
 		repo_paths: &[String],
-	) -> Result<(), GopError> {
+	) -> Result<(), VaqMainError> {
 		let mut repos = self.load()?;
 		repos.remove_tag(tag_name, repo_paths.to_vec())?;
 		self.save(repos)
 	}
 
 	/// Filter repos by tag filter with AND/OR logic.
-	pub fn list(&self, filter: &TagFilter) -> Result<Vec<GopRepo>, GopError> {
+	pub fn list(&self, filter: &TagFilter) -> Result<Vec<VaqRepo>, VaqMainError> {
 		let repos = self.load()?;
 
-		let mut result: Vec<GopRepo> = repos
+		let mut result: Vec<VaqRepo> = repos
 			.into_iter()
 			.filter(|repo| filter.matches(&repo.tags))
 			.collect();
@@ -185,11 +111,11 @@ impl Gitopolis {
 		Ok(result)
 	}
 
-	pub fn read(&self) -> Result<GopRepos, GopError> {
+	pub fn read(&self) -> Result<VaqRepos, VaqMainError> {
 		self.load()
 	}
 
-	pub fn clone(&self, repos: Vec<GopRepo>) -> Result<usize, GopError> {
+	pub fn clone(&self, repos: Vec<VaqRepo>) -> Result<usize, VaqMainError> {
 		let mut error_count = 0;
 
 		for repo in repos {
@@ -228,10 +154,10 @@ impl Gitopolis {
 		Ok(error_count)
 	}
 
-	pub fn tags(&self) -> Result<GopTags, GopError> {
+	pub fn tags(&self) -> Result<VaqTags, VaqMainError> {
 		let repos = self.load()?;
 
-		let mut tags: GopTags = repos.into_iter()
+		let mut tags: VaqTags = repos.into_iter()
 			.flat_map(|r| r.tags)
 			.collect();
 
@@ -241,7 +167,7 @@ impl Gitopolis {
 		Ok(tags)
 	}
 
-	pub fn sync_read_remotes(&mut self, filter: &TagFilter) -> Result<(), GopError> {
+	pub fn sync_read_remotes(&mut self, filter: &TagFilter) -> Result<(), VaqMainError> {
 		let mut repos = self.load()?;
 		let repo_list = self.list(filter)?;
 		let mut error_count = 0;
@@ -274,7 +200,7 @@ impl Gitopolis {
 		Ok(())
 	}
 
-	pub fn sync_write_remotes(&self, filter: &TagFilter) -> Result<(), GopError> {
+	pub fn sync_write_remotes(&self, filter: &TagFilter) -> Result<(), VaqMainError> {
 		let repo_list = self.list(filter)?;
 		let mut error_count = 0;
 
@@ -308,14 +234,14 @@ impl Gitopolis {
 		Ok(())
 	}
 
-	fn show_by_name(&self, repo_name: &str) -> Result<&mut GopRepo, GopError> {
+	fn show_by_name(&self, repo_name: &str) -> Result<&mut VaqRepo, VaqMainError> {
 		let mut repos = self.load()?;
 		let repo = repos.find_by_name(repo_name)
-			.ok_or_else(|| GopError::state_repo_not_found(repo_name.to_string()))?;
+			.ok_or_else(|| VaqMainError::state_repo_not_found(repo_name.to_string()))?;
 		Ok(repo)
 	}
 
-	fn show_by_path(&self, repo_path: &Path) -> Result<GopRepo, GopError> {
+	fn show_by_path(&self, repo_path: &Path) -> Result<VaqRepo, VaqMainError> {
 		let mut repos = self.load()?;
 		let normalized_path = normalize_path(repo_path);
 
@@ -323,17 +249,17 @@ impl Gitopolis {
 		let repo = repos
 			.into_iter()
 			.find(|r| r.path == normalized_path)
-			.ok_or_else(|| GopError::state_repo_not_found(repo_path.to_string_lossy().to_string()))?;
+			.ok_or_else(|| VaqMainError::state_repo_not_found(repo_path.to_string_lossy().to_string()))?;
 
 		Ok(repo)
 	}
 
-	pub fn clone_and_add<NU: AsRef<GopUrl>, P: AsRef<Path>, T: AsRef<GopTags>>(
+	pub fn clone_and_add<NU: AsRef<VaqUrl>, P: AsRef<Path>, T: AsRef<VaqTags>>(
 		&mut self,
 		url: U,
 		target_path: P,
 		tags: T,
-	) -> Result<String, GopError> {
+	) -> Result<String, VaqMainError> {
 		// Use target_path if provided, otherwise extract from URL
 		let path_name = match target_path {
 			Some(path) => path.to_string(),
@@ -345,7 +271,7 @@ impl Gitopolis {
 		// Clone the repository
 		self.git.clone(&path_name, url)?;
 
-		// Add the repository to gitopolis
+		// Add the repository to vaquera
 		self.add(path_name.clone())?;
 
 		// Add tags if any were specified
@@ -358,7 +284,7 @@ impl Gitopolis {
 		Ok(path_name)
 	}
 
-	pub fn move_repo(&mut self, old_path: &str, new_path: &str) -> Result<(), GopError> {
+	pub fn move_repo(&mut self, old_path: &str, new_path: &str) -> Result<(), VaqMainError> {
 		let mut repos = self.load()?;
 		let normalized_old = normalize_path(old_path.to_string());
 		let normalized_new = normalize_path(new_path.to_string());
@@ -391,15 +317,15 @@ impl Gitopolis {
 		Ok(())
 	}
 
-	fn save(&self, repos: GopRepos) -> Result<(), GopError> {
+	fn save(&self, repos: VaqRepos) -> Result<(), VaqMainError> {
 		let state_toml = serialize(&repos)?;
 		self.storage.save(state_toml);
 		Ok(())
 	}
 
-	fn load(&self) -> Result<GopRepos, GopError> {
+	fn load(&self) -> Result<VaqRepos, VaqMainError> {
 		if !self.storage.exists() {
-			return Ok(GopRepos::new());
+			return Ok(VaqRepos::new());
 		}
 
 		let state_toml = self.storage.read();
@@ -408,23 +334,23 @@ impl Gitopolis {
 	}
 }
 
-fn serialize(repos: &GopRepos) -> Result<String, GopError> {
+fn serialize(repos: &VaqRepos) -> Result<String, VaqMainError> {
 	toml::to_string(&repos).map_err(|error| StateError {
 		message: format!("Failed to generate toml for repo list. {error}"),
 	})
 }
 
 // TODO: should not work
-fn parse(state_toml: &str) -> Result<GopRepos, GopError> {
-	let mut named_container: BTreeMap<String, Vec<GopRepo>> =
-		toml::from_str(state_toml).map_err(|error| GopError::state {
+fn parse(state_toml: &str) -> Result<VaqRepos, VaqMainError> {
+	let mut named_container: BTreeMap<String, Vec<VaqRepo>> =
+		toml::from_str(state_toml).map_err(|error| VaqMainError::state {
 			message: format!("Failed to parse state data as valid TOML. {error}"),
 		})?;
 
 	let repos = named_container
 		.remove("repos") // [re]move this rather than taking a ref so that ownership moves with it (borrow checker)
 		.expect("Failed to read 'repos' entry from state TOML");
-	Ok(GopRepos::new_with_repos(repos))
+	Ok(VaqRepos::new_with_repos(repos))
 }
 
 fn normalize_paths(repo_paths: &[PathBuf]) -> Vec<PathBuf> {

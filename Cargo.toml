@@ -1,18 +1,18 @@
 [package]
-authors = ["Tim Abell <t@0x5.uk>"]
+authors = ["Roger Senna <rs3nn42@gmail.com>"]
 build = "scripts/build.rs"
 categories = ["command-line-utilities", "development-tools"]
-default-run = "gitopolis"
-description = "Manage multiple git repositories - CLI tool - run commands, clone, and organize repos with tags"
-documentation = "https://www.nushell.sh/book/"
+default-run = "vaquera"
+description = "tbd"
+documentation = "tbd"
 edition = "2024"
-exclude = ["images"]
-homepage = "https://github.com/timabell/gitopolis"
-keywords = ["git", "cli", "multi-repo", "microservices"]
+exclude = ["assets/**", "docs/**", "scripts/**", "tests/**"]
+homepage = "https://github.com/rsenna/vaquera"
+keywords = ["git", "cli", "multi-repo", "productivity", "workspace"]
 license = "AGPL-3.0-only"
-name = "gitopolis"
+name = "vaquera"
 readme = "README.md"
-repository = "https://github.com/timabell/gitopolis"
+repository = "https://github.com/rsenna/vaquera"
 rust-version = "1.89.0"
 version = "0.0.0-git"
 
@@ -32,10 +32,10 @@ ignored = [
 ]
 
 [package.metadata.winresource]
-FileDescription = "Manage multiple Git repositories"
+FileDescription = "Generic workspace CLI manager"
 FileVersion = "${version}"
 ProductVersion = "${version}"
-ProductName = "Gitopolis"
+ProductName = "Vaquera"
 
 # Run all benchmarks with `cargo bench`
 # Run individual benchmarks like `cargo bench -- <regex>` e.g. `cargo bench -- parse`
@@ -44,7 +44,7 @@ name = "benchmarks"
 harness = false
 
 [dependencies]
-gop-core = { path = "./crates/gop-core" }
+vaq-git = { path = "./crates/vaq-git" }
 
 clap = { version = "4.5.51", features = ["derive"] }
 env_logger = "0.11.8"
@@ -57,16 +57,7 @@ predicates = "3.1.3"
 tango-bench = "0.6.0"
 tempfile = "3.23.0"
 
-[lints]
-workspace = true
-
 [workspace]
 members = [
-	"crates/gop-core",
+	"crates/vaq-git",
 ]
-
-[workspace.lints.clippy]
-# Warning: workspace lints affect library code as well as tests, so don't enable lints that would be too noisy in tests like that.
-unchecked_duration_subtraction = "warn"
-used_underscore_binding = "warn"
-result_large_err = "allow"

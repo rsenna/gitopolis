@@ -1,17 +1,17 @@
 use clap::{Parser, Subcommand};
-use gitopolis::exec::exec;
-use gitopolis::git::GitImpl;
-use gitopolis::gitopolis::{Gitopolis, GopError, SomeError};
-use gitopolis::repos::GopRepo;
-use gitopolis::storage::StorageImpl;
-use gitopolis::tag_filter::TagFilter;
+use vaquera::exec::exec;
+use vaquera::git::GitImpl;
+use vaquera::vaquera::{Vaquera, VaqError, SomeError};
+use vaquera::repos::VaqRepo;
+use vaquera::storage::StorageImpl;
+use vaquera::tag_filter::TagFilter;
 use log::LevelFilter;
 use std::io::Write;
 use std::path::PathBuf;
 
 /// A CLI tool for managing multiple git repositories
 /// License: A-GPL v3.0
-/// Repo: https://github.com/rustworkshop/gitopolis
+/// Repo: https://github.com/rustworkshop/vaquera
 #[derive(Parser)]
 #[clap(author, version, subcommand_required = true, verbatim_doc_comment)]
 struct Args {
@@ -26,12 +26,12 @@ enum Commands {
 		#[clap(required = true)]
 		repo_folders: Vec<String>,
 	},
-	/// Remove one or more git repos from gitopolis's list. Leaves actual repo on filesystem alone.
+	/// Remove one or more git repos from vaquera's list. Leaves actual repo on filesystem alone.
 	Remove {
 		#[clap(required = true)]
 		repo_folders: Vec<String>,
 	},
-	/// Show list of repos gitopolis knows about. Use "long" to see tags and urls (tab separated format).
+	/// Show list of repos vaquera knows about. Use "long" to see tags and urls (tab separated format).
 	List {
 		/// Filter by tags. Comma-separated tags use AND logic (e.g., "foo,bar" = foo AND bar).
 		/// Multiple --tag flags use OR logic (e.g., "--tag foo,bar --tag baz" = (foo AND bar) OR baz).
@@ -40,7 +40,7 @@ enum Commands {
 		#[clap(short, long)]
 		long: bool,
 	},
-	/// Run any shell command. E.g. `gitopolis exec -- git pull`. Double-dash separator indicates end of gitopolis's arguments and prevents arguments to your commands being interpreted by gitopolis.
+	/// Run any shell command. E.g. `vaquera exec -- git pull`. Double-dash separator indicates end of vaquera's arguments and prevents arguments to your commands being interpreted by vaquera.
 	Exec {
 		/// Filter by tags. Comma-separated tags use AND logic (e.g., "foo,bar" = foo AND bar).
 		/// Multiple --tag flags use OR logic (e.g., "--tag foo,bar --tag baz" = (foo AND bar) OR baz).
@@ -65,13 +65,13 @@ enum Commands {
 		#[clap(short, long)]
 		long: bool,
 	},
-	/// Clone repository from URL and add to gitopolis, or clone all configured repos from .gitopolis.toml.
+	/// Clone repository from URL and add to vaquera, or clone all configured repos from .vaquera.toml.
 	/// This command behaves in two very different ways depending on whether a remote url was provided:
-	/// If URL is provided: clones from that URL, extracts repo name, adds to gitopolis (optionally with tags).
-	/// If URL is omitted: clones all repos from .gitopolis.toml (filtered by --tag if specified) skipping existing folders. (Useful for setting up new machines/developers from an existing team configuration)
+	/// If URL is provided: clones from that URL, extracts repo name, adds to vaquera (optionally with tags).
+	/// If URL is omitted: clones all repos from .vaquera.toml (filtered by --tag if specified) skipping existing folders. (Useful for setting up new machines/developers from an existing team configuration)
 	Clone {
 		/// Optional git URL to clone from (e.g., git@github.com:user/repo.git or https://github.com/user/repo).
-		/// If omitted, clones repos defined in .gitopolis.toml configuration
+		/// If omitted, clones repos defined in .vaquera.toml configuration
 		url: Option<String>,
 		/// Optional addition to URL - target directory name to clone this url into (like git clone). If omitted, extracts name from URL
 		target_dir: Option<String>,
@@ -82,12 +82,12 @@ enum Commands {
 		#[arg(short, long)]
 		tag: Vec<String>,
 	},
-	/// Sync remotes between git repositories and .gitopolis.toml configuration
+	/// Sync remotes between git repositories and .vaquera.toml configuration
 	Sync {
-		/// Update .gitopolis.toml from remotes in git repositories
+		/// Update .vaquera.toml from remotes in git repositories
 		#[arg(long, conflicts_with = "write_remotes")]
 		read_remotes: bool,
-		/// Update git repositories with remotes from .gitopolis.toml
+		/// Update git repositories with remotes from .vaquera.toml
 		#[arg(long, conflicts_with = "read_remotes")]
 		write_remotes: bool,
 		/// Filter by tags. Comma-separated tags use AND logic (e.g., "foo,bar" = foo AND bar).
@@ -101,7 +101,7 @@ enum Commands {
 		#[clap(required = true)]
 		repo_id: String,
 	},
-	/// Move a repository to a new location, updating gitopolis configuration
+	/// Move a repository to a new location, updating vaquera configuration
 	Move {
 		#[clap(subcommand)]
 		entity: MoveEntity,
@@ -130,7 +130,7 @@ fn main() {
 			add(repo_folders.to_owned()),
 
 		Some(Commands::Remove { repo_folders }) => {
-			init_gitopolis()
+			init_vaquera()
 				.remove_repos_by_name(repo_folders)
 				.expect("Failed to remove repository");
 		}
@@ -141,7 +141,7 @@ fn main() {
 		}) => {
 			let filter = TagFilter::from_cli_args(tag_args);
 			list(
-				init_gitopolis()
+				init_vaquera()
 					.list(&filter)
 					.expect("Failed to list repositories"),
 				*long,
@@ -160,7 +160,7 @@ fn main() {
 			let filter = TagFilter::from_cli_args(tag_args);
 			exec(
 				exec_args.to_owned(),
-				init_gitopolis()
+				init_vaquera()
 					.list(&filter)
 					.expect("Failed to list repositories for exec"),
 				*oneline,
@@ -175,9 +175,9 @@ fn main() {
 
 			for tag in tags {
 				let result = if *remove {
-					init_gitopolis().remove_tag(tag, repo_folders)
+					init_vaquera().remove_tag(tag, repo_folders)
 				} else {
-					init_gitopolis().add_tag(tag, repo_folders)
+					init_vaquera().add_tag(tag, repo_folders)
 				};
 
 				if let Err(error) = result {
@@ -196,11 +196,11 @@ fn main() {
 			let filter = TagFilter::from_cli_args(tag_args);
 
 			if *read_remotes {
-				init_gitopolis()
+				init_vaquera()
 					.sync_read_remotes(&filter)
 					.expect("Sync read failed");
 			} else if *write_remotes {
-				init_gitopolis()
+				init_vaquera()
 					.sync_write_remotes(&filter)
 					.expect("Sync write failed");
 			} else {
@@ -215,7 +215,7 @@ fn main() {
 
 		Some(Commands::Move { entity }) => match entity {
 			MoveEntity::Repo { old_path, new_path } => {
-				match init_gitopolis().move_repo(old_path, new_path) {
+				match init_vaquera().move_repo(old_path, new_path) {
 					Ok(_) => {
 						eprintln!("Moved {} to {}", old_path, new_path);
 					}
@@ -238,12 +238,12 @@ fn main() {
 /// # Behavior
 ///
 /// ## When URL is provided
-/// Clones a single repository from the given URL and adds it to gitopolis.
+/// Clones a single repository from the given URL and adds it to vaquera.
 /// All tags from tag_args are flattened and applied to the cloned repository.
 /// - Example: `--tag foo,bar --tag baz` results in repo having tags: [foo, bar, baz]
 ///
 /// ## When URL is omitted
-/// Clones all repositories from .gitopolis.toml configuration that match the tag filter.
+/// Clones all repositories from .vaquera.toml configuration that match the tag filter.
 /// Uses AND/OR logic for filtering:
 /// - Comma-separated tags within one --tag flag use AND logic
 /// - Multiple --tag flags use OR logic
@@ -258,11 +258,11 @@ fn clone(url: &Option<String>, target_dir: &Option<String>, tag_args: &[String])
 	match url {
 		Some(git_url) => clone_from_url(git_url, target_dir, tag_args),
 		None => {
-			// Clone from .gitopolis.toml with tag filtering
-			let gitopolis = init_gitopolis();
+			// Clone from .vaquera.toml with tag filtering
+			let vaquera = init_vaquera();
 			let filter = TagFilter::from_cli_args(tag_args);
-			gitopolis.clone(
-				gitopolis
+			vaquera.clone(
+				vaquera
 					.list(&filter)
 					.expect("Failed to list repositories for cloning"),
 			);
@@ -270,7 +270,7 @@ fn clone(url: &Option<String>, target_dir: &Option<String>, tag_args: &[String])
 	}
 }
 
-/// Clone a single repository from a URL and add it to gitopolis.
+/// Clone a single repository from a URL and add it to vaquera.
 ///
 /// All tags from tag_args are flattened (comma-separated tags are split)
 /// and applied to the cloned repository. No AND/OR filtering logic is used
@@ -286,13 +286,13 @@ fn clone(url: &Option<String>, target_dir: &Option<String>, tag_args: &[String])
 ///
 /// `--tag foo,bar --tag baz` results in repo having tags: [foo, bar, baz]
 fn clone_from_url(git_url: &str, target_dir: &Option<String>, tag_args: &[String]) {
-	let mut gitopolis = init_gitopolis();
+	let mut vaquera = init_vaquera();
 	// Flatten all tags - when cloning a single repo, all tags are applied (no AND/OR logic)
 	let tags: Vec<String> = tag_args
 		.iter()
 		.flat_map(|s| s.split(',').map(|t| t.trim().to_string()))
 		.collect();
-	match gitopolis.clone_and_add(git_url, target_dir.as_deref(), &tags) {
+	match vaquera.clone_and_add(git_url, target_dir.as_deref(), &tags) {
 		Ok(folder_name) => {
 			println!("Successfully cloned and added {}", folder_name);
 		}
@@ -303,25 +303,25 @@ fn clone_from_url(git_url: &str, target_dir: &Option<String>, tag_args: &[String
 	}
 }
 
-const STATE_FILE: &str = ".gitopolis.toml";
+const STATE_FILE: &str = ".vaquera.toml";
 
-fn init_gitopolis() -> Gitopolis {
-	Gitopolis::new(
+fn init_vaquera() -> Vaquera {
+	Vaquera::new(
 		Box::new(StorageImpl { path: STATE_FILE }),
 		Box::new(GitImpl {}),
 	)
 }
 
-fn add(repo_folders: Vec<String>) -> Result((), GopError) {
+fn add(repo_folders: Vec<String>) -> Result((), VaqError) {
 	for repo_folder in repo_folders {
 		let path = PathBuf::from(repo_folder);
-		init_gitopolis().add(path.as_ref())?
+		init_vaquera().add(path.as_ref())?
 	}
 
 	Ok(())
 }
 
-fn list(repos: Vec<GopRepo>, long: bool) {
+fn list(repos: Vec<VaqRepo>, long: bool) {
 	if repos.is_empty() {
 		println!("No repos");
 		std::process::exit(2);
@@ -342,12 +342,12 @@ fn list(repos: Vec<GopRepo>, long: bool) {
 }
 
 fn list_tags(long: bool) {
-	let gitopolis = &init_gitopolis();
+	let vaquera = &init_vaquera();
 	if long {
-		for tag in gitopolis.tags().expect("Failed to get tags") {
+		for tag in vaquera.tags().expect("Failed to get tags") {
 			println!("{tag}");
 			let filter = TagFilter::from_cli_args(std::slice::from_ref(&tag));
-			for r in gitopolis
+			for r in vaquera
 				.list(&filter)
 				.expect("Failed to list repositories for tag")
 			{
@@ -356,16 +356,16 @@ fn list_tags(long: bool) {
 			println!();
 		}
 	} else {
-		for tag in gitopolis.tags().expect("Failed to get tags") {
+		for tag in vaquera.tags().expect("Failed to get tags") {
 			println!("{tag}");
 		}
 	}
 }
 
 fn show(repo_id: &str) {
-	let gitopolis = init_gitopolis();
+	let vaquera = init_vaquera();
 
-	match gitopolis.show(repo_id) {
+	match vaquera.show(repo_id) {
 		Ok(repo_info) => {
 			println!("Tags:");
 			if repo_info.tags.is_empty() {

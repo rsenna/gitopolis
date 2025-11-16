@@ -1,12 +1,10 @@
 [package]
-authors = ["Tim Abell <t@0x5.uk>"]
-categories = ["command-line-utilities", "development-tools"]
-description = "Core library for Gitopolis"
+authors = ["Roger Senna <rs3nn42@gmail.com"]
+description = "Git library for Vaquera"
 edition = "2024"
 license = "AGPL-3.0-only"
-name = "gop-core"
+name = "vaq-git"
 readme = "README.md"
-version = "0.0.0-git"
 
 [dependencies]
 bstr = { version = "1.12.1", features = ["serde"] }

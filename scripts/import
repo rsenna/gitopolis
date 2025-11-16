@@ -1,5 +1,5 @@
 #!/usr/bin/env nu
 
 def main [] {
-	# read gitmodules
+	# TODO read gitmodules
 }

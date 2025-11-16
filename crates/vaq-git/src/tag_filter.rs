@@ -8,7 +8,7 @@
 /// # Examples
 ///
 /// ```
-/// use gitopolis::tag_filter::TagFilter;
+/// use vaquera::tag_filter::TagFilter;
 ///
 /// // Match all repos (no filter)
 /// let filter = TagFilter::all();
